@@ -101,7 +101,7 @@
 <div id="view-report" class="view">
   <div class="mb-4">
     <h1 class="text-2xl font-black">엘리트 <span class="text-hyrox">분석 리포트</span></h1>
-    <p class="text-sm text-neutral-500 mt-0.5">룰 엔진 정량 분석 → Gemini 처방.</p>
+    <p class="text-sm text-neutral-500 mt-0.5">룰 엔진 정량 분석 → Gemini 처방. 별도 리포트 페이지는 report-preview.html.</p>
   </div>
   <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-6 text-center">
     <p class="text-neutral-400 mb-2">실시간 수집된 데이터 기반 리포트를 확인합니다.</p>
@@ -136,12 +136,17 @@
 <div id="scan-modal" class="fixed inset-0 z-[60] p-4"></div>
 
 <script>
-// Supabase 클라이언트 초기화
-const SUPABASE_URL = window.SUPABASE_URL || "https://vurxqetjfzliemazmmft.supabase.co";
+// Supabase 클라이언트 안전 초기화 (CDN v2 표준)
+const SUPABASE_URL = "https://vurxqetjfzliemazmmft.supabase.co";
 const SUPABASE_KEY = window.SUPABASE_KEY || "";
 let supabase = null;
-if (typeof supabaseClient !== 'undefined' && SUPABASE_KEY) {
-  supabase = supabaseClient.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+if (window.supabase && SUPABASE_KEY) {
+  try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e) {
+    console.error("Supabase init error:", e);
+  }
 }
 
 /* SVG 및 아이콘 빌더 */
@@ -222,11 +227,11 @@ const SEQ = [
 ];
 
 const ZONE_DEF = [
-  {z:1, lo:0.50, hi:0.60, name:"Recovery",  ko:"회복",   color:"#60A5FA", tw:"text-blue-400"},
-  {z:2, lo:0.60, hi:0.70, name:"Aerobic",   ko:"유산소", color:"#34D399", tw:"text-emerald-400"},
-  {z:3, lo:0.70, hi:0.80, name:"Tempo",     ko:"템포",   color:"#FBBF24", tw:"text-amber-400"},
-  {z:4, lo:0.80, hi:0.90, name:"Threshold", ko:"역치",   color:"#E05D29", tw:"text-hyrox"},
-  {z:5, lo:0.90, hi:1.10, name:"Maximum",   ko:"최대",   color:"#EF4444", tw:"text-red-500"},
+  {z:1, lo:0.50, hi:0.60, name:"Recovery",  ko:"회복",   color:"#60A5FA"},
+  {z:2, lo:0.60, hi:0.70, name:"Aerobic",   ko:"유산소", color:"#34D399"},
+  {z:3, lo:0.70, hi:0.80, name:"Tempo",     ko:"템포",   color:"#FBBF24"},
+  {z:4, lo:0.80, hi:0.90, name:"Threshold", ko:"역치",   color:"#E05D29"},
+  {z:5, lo:0.90, hi:1.10, name:"Maximum",   ko:"최대",   color:"#EF4444"},
 ];
 
 function estimateMaxHr(age){ const a = Number(age); return (!a || a<=0) ? 190 : 220 - a; }
@@ -264,7 +269,6 @@ function buildGuidance(totalSec){
 function mmss(sec){ if(sec==null||isNaN(sec)) return "--:--"; const n=Math.abs(Math.round(sec)); return `${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`; }
 function signed(sec){ if(sec==null||isNaN(sec)) return "--:--"; return (sec>=0?"+":"-")+mmss(sec); }
 
-/* 실제 edge-collector 수집기 디바이스 ID 연동 구조 */
 const ATHLETES = [
   {id:1, name:"선수 1", en:"Athlete 1", div:"MEN PRO", age:"30-34", ageNum:30, maxHrManual:null, targetSec:3600, sensor:"athlete_1", device:"BLE HR Sensor 1"},
   {id:2, name:"선수 2", en:"Athlete 2", div:"MEN PRO", age:"30-34", ageNum:30, maxHrManual:null, targetSec:3600, sensor:"athlete_2", device:"BLE HR Sensor 2"},
@@ -296,9 +300,7 @@ ATHLETES.forEach(a=>{
     bpm:0, rmssd:null, respiration:null, gct:null, cadence:null,
     hrHistory:[],
     connected:false,
-    latencyMs: 0,
-    txCount: 0, rxCount: 0,
-    lastRxAt: null,
+    latencyMs: 0, txCount: 0, rxCount: 0, lastRxAt: null,
   };
 });
 
@@ -327,7 +329,6 @@ function computeMetrics(st, now){
           curSeq:finished?null:SEQ[done]};
 }
 
-/* ★ Supabase에서 실제 수집기 데이터 가져오기 */
 async function fetchRealtimeHeartRate() {
   if(!supabase) return;
   try {
@@ -641,15 +642,16 @@ async function openScan(athleteId){
   scanState = { open:true, scanning:true, results:[], targetAthlete:athleteId };
   renderScanModal();
   
-  // 실제 DB에서 현재 스캔된 기기 목록 가져오기
   if(supabase) {
-    const { data } = await supabase.from('device_status').select('*');
-    scanState.results = (data || []).map(d => ({
-      address: d.mac_address || d.id,
-      name: d.device_name || 'BLE HR Sensor',
-      rssi: d.rssi || -60,
-      is_hr: true
-    }));
+    try {
+      const { data } = await supabase.from('device_status').select('*');
+      scanState.results = (data || []).map(d => ({
+        address: d.mac_address || d.id,
+        name: d.device_name || 'BLE HR Sensor',
+        rssi: d.rssi || -60,
+        is_hr: true
+      }));
+    } catch(e){}
   }
   scanState.scanning = false;
   renderScanModal();
@@ -1060,9 +1062,9 @@ function showView(v){
   renderAll();
 }
 
-async function renderAll(){
+function renderAll(){
   const now=Date.now();
-  await fetchRealtimeHeartRate();
+  fetchRealtimeHeartRate();
   if(activeView==="admin") renderAdmin();
   if(activeView==="referee") renderReferee();
   if(activeView==="tv") renderTvView();
