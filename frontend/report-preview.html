@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>XON TRAINING · 엘리트 분석 리포트</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{hyrox:"#E05D29",base:"#0A0A0A"}}}};</script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<style>
+  html,body{background:#0A0A0A;margin:0;}
+  .tabular{font-variant-numeric:tabular-nums;}
+  @media print{
+    @page{size:A4 portrait;margin:10mm;}
+    html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .p-dark{background:#fff!important;}
+    .p-card{background:#fff!important;border-color:#d4d4d4!important;}
+    .p-text{color:#111!important;} .p-sub{color:#555!important;} .p-muted{color:#777!important;}
+    .no-print{display:none!important;}
+    .print-block{page-break-inside:avoid;break-inside:avoid;}
+    .print-break{page-break-before:always;break-before:page;}
+    .chart-h{height:200px!important;}
+    *{box-shadow:none!important;}
+  }
+</style>
+</head>
+<body class="p-dark text-white">
+<div id="root"></div>
+
+<script>
+/* 리포트 데이터 (룰 엔진이 실제 산출한 값) */
+const REPORT = {"athlete":{"name":"정원준","en":"Wonjoon Jung","div":"MEN PRO","age":"30-34","targetSec":3600,"maxHr":188,"date":"2026-07-24"},"totalSec":3684,"splits":[{"k":"run_1","sec":225,"target":225,"label":"Run","idx":0},{"k":"ski_erg","sec":190,"target":186,"label":"Ski Erg","idx":1},{"k":"run_2","sec":227,"target":232,"label":"Run","idx":2},{"k":"sled_push","sec":185,"target":170,"label":"Sled Push","idx":3},{"k":"run_3","sec":268,"target":240,"label":"Run","idx":4},{"k":"sled_pull","sec":245,"target":219,"label":"Sled Pull","idx":5},{"k":"run_4","sec":272,"target":245,"label":"Run","idx":6},{"k":"burpee","sec":255,"target":251,"label":"Burpee Broad Jumps","idx":7},{"k":"run_5","sec":250,"target":250,"label":"Run","idx":8},{"k":"rowing","sec":192,"target":186,"label":"Rowing","idx":9},{"k":"run_6","sec":229,"target":255,"label":"Run","idx":10},{"k":"farmers","sec":123,"target":122,"label":"Farmers Carry","idx":11},{"k":"run_7","sec":230,"target":262,"label":"Run","idx":12},{"k":"lunges","sec":241,"target":219,"label":"Sandbag Lunges","idx":13},{"k":"run_8","sec":262,"target":265,"label":"Run","idx":14},{"k":"wall_balls","sec":290,"target":267,"label":"Wall Balls","idx":15}],"analysis":{"baseline":{"mean":228,"sd":1.9,"cv":0.008},"taxes":[{"station":"sled_push","run":"run_3","group":"strength","label":"Sled Push","runSec":268,"baselineSec":228,"dropPct":17.7,"z":20.96,"hrRecovery":6,"severity":"severe"},{"station":"sled_pull","run":"run_4","group":"strength","label":"Sled Pull","runSec":272,"baselineSec":228,"dropPct":19.4,"z":23.04,"hrRecovery":6,"severity":"severe"},{"station":"burpee","run":"run_5","group":"bodyweight","label":"Burpee","runSec":250,"baselineSec":228,"dropPct":9.8,"z":11.59,"hrRecovery":6,"severity":"severe"},{"station":"lunges","run":"run_8","group":"bodyweight","label":"Sandbag Lunges","runSec":262,"baselineSec":228,"dropPct":15,"z":17.84,"hrRecovery":7,"severity":"severe"}],"strengthDrop":18.5,"bodyweightDrop":12.4,"avgDrop":15.4,"profile":"Runner","tendency":"러닝형","profileDesc":"러닝 자체는 안정적이지만 근력·체중 종목 직후 러닝에서 큰 손실이 발생합니다. 스테이션 저항력 훈련이 최우선입니다.","stationEff":[{"k":"ski_erg","sec":190,"target":186,"diffPct":2.2},{"k":"sled_push","sec":185,"target":170,"diffPct":8.8},{"k":"sled_pull","sec":245,"target":219,"diffPct":11.9},{"k":"burpee","sec":255,"target":251,"diffPct":1.6},{"k":"rowing","sec":192,"target":186,"diffPct":3.2},{"k":"farmers","sec":123,"target":122,"diffPct":0.8},{"k":"lunges","sec":241,"target":219,"diffPct":10},{"k":"wall_balls","sec":290,"target":267,"diffPct":8.6}],"radar":[{"axis":"러닝 일관성","score":96},{"axis":"슬레드 저항","score":45},{"axis":"체중종목 저항","score":63},{"axis":"스테이션 파워","score":88},{"axis":"심박 회복력","score":88}],"strengths":[{"axis":"러닝 일관성","score":96},{"axis":"스테이션 파워","score":88}],"weaknesses":[{"axis":"슬레드 저항","score":45},{"axis":"체중종목 저항","score":63}]},"gemini":{"summary":"러닝 엔진은 PRO급으로 안정적(편차 ±1.9초)이지만, 근력 종목 직후 러닝에서 평균 +18.5%의 큰 손실이 발생합니다. 종목 수행력이 아니라 '슬레드 이후 러닝 전환' 능력이 병목입니다. 이 부분만 개선해도 목표 달성이 현실적입니다.","priorities":["슬레드 직후 러닝 전환 훈련: Sled Push 50m → 즉시 400m, 기준 페이스 ±3% 유지 × 6세트","역치 지구력: Zone 4 인터벌 (4분 ON / 2분 OFF) 주 2회","슬레드 특이적 근지구력: 중량 썰매 밀기 후 즉시 러닝 접목"],"station_drills":[{"station":"Sled Push","drill":"보폭 절반·상체 45도 낮춰 다리 힘만으로. 25m 지점 무정지 통과 훈련."},{"station":"Sandbag Lunges","drill":"백을 앞쪽 랙 포지션으로. 엉덩이 주도 하강으로 대퇴사두 소모 최소화."},{"station":"Wall Balls","drill":"25-25-25-25 분할, 세트 간 5초 이내. 첫 25개 오버페이스 금지."}],"race_tactics":["첫 1km는 목표보다 5초 느리게 — 초반 과부하가 후반 붕괴의 원인","락스존에서 4-6 호흡법으로 심박 8~12bpm 낮춘 뒤 스테이션 진입","슬레드는 정지 없이 속도만 줄여 연속 진행 — 재출발이 심박을 가장 크게 올림"]},"hrTrend":[{"t":0,"bpm":138},{"t":0.5,"bpm":141},{"t":1,"bpm":143},{"t":1.5,"bpm":144},{"t":2,"bpm":144},{"t":2.5,"bpm":142},{"t":3,"bpm":140},{"t":3.5,"bpm":138},{"t":4,"bpm":137},{"t":4.5,"bpm":136},{"t":5,"bpm":136},{"t":5.5,"bpm":138},{"t":6,"bpm":140},{"t":6.5,"bpm":143},{"t":7,"bpm":145},{"t":7.5,"bpm":147},{"t":8,"bpm":148},{"t":8.5,"bpm":147},{"t":9,"bpm":145},{"t":9.5,"bpm":143},{"t":10,"bpm":141},{"t":10.5,"bpm":140},{"t":11,"bpm":139},{"t":11.5,"bpm":140},{"t":12,"bpm":142},{"t":12.5,"bpm":145},{"t":13,"bpm":148},{"t":13.5,"bpm":150},{"t":14,"bpm":151},{"t":14.5,"bpm":151},{"t":15,"bpm":150},{"t":15.5,"bpm":148},{"t":16,"bpm":146},{"t":16.5,"bpm":144},{"t":17,"bpm":143},{"t":17.5,"bpm":143},{"t":18,"bpm":145},{"t":18.5,"bpm":147},{"t":19,"bpm":150},{"t":19.5,"bpm":152},{"t":20,"bpm":154},{"t":20.5,"bpm":155},{"t":21,"bpm":154},{"t":21.5,"bpm":153},{"t":22,"bpm":151},{"t":22.5,"bpm":149},{"t":23,"bpm":147},{"t":23.5,"bpm":147},{"t":24,"bpm":148},{"t":24.5,"bpm":149},{"t":25,"bpm":152},{"t":25.5,"bpm":155},{"t":26,"bpm":157},{"t":26.5,"bpm":158},{"t":27,"bpm":159},{"t":27.5,"bpm":158},{"t":28,"bpm":156},{"t":28.5,"bpm":154},{"t":29,"bpm":152},{"t":29.5,"bpm":151},{"t":30,"bpm":151},{"t":30.5,"bpm":152},{"t":31,"bpm":154},{"t":31.5,"bpm":157},{"t":32,"bpm":160},{"t":32.5,"bpm":161},{"t":33,"bpm":162},{"t":33.5,"bpm":162},{"t":34,"bpm":161},{"t":34.5,"bpm":159},{"t":35,"bpm":156},{"t":35.5,"bpm":155},{"t":36,"bpm":154},{"t":36.5,"bpm":155},{"t":37,"bpm":156},{"t":37.5,"bpm":159},{"t":38,"bpm":162},{"t":38.5,"bpm":164},{"t":39,"bpm":166},{"t":39.5,"bpm":166},{"t":40,"bpm":165},{"t":40.5,"bpm":163},{"t":41,"bpm":161},{"t":41.5,"bpm":159},{"t":42,"bpm":158},{"t":42.5,"bpm":158},{"t":43,"bpm":159},{"t":43.5,"bpm":161},{"t":44,"bpm":164},{"t":44.5,"bpm":167},{"t":45,"bpm":169},{"t":45.5,"bpm":170},{"t":46,"bpm":169},{"t":46.5,"bpm":168},{"t":47,"bpm":166},{"t":47.5,"bpm":164},{"t":48,"bpm":162},{"t":48.5,"bpm":162},{"t":49,"bpm":162},{"t":49.5,"bpm":164},{"t":50,"bpm":166},{"t":50.5,"bpm":169},{"t":51,"bpm":171},{"t":51.5,"bpm":173},{"t":52,"bpm":173},{"t":52.5,"bpm":173},{"t":53,"bpm":171},{"t":53.5,"bpm":169},{"t":54,"bpm":167},{"t":54.5,"bpm":166},{"t":55,"bpm":165},{"t":55.5,"bpm":166},{"t":56,"bpm":168},{"t":56.5,"bpm":171},{"t":57,"bpm":174},{"t":57.5,"bpm":176},{"t":58,"bpm":177},{"t":58.5,"bpm":177},{"t":59,"bpm":176},{"t":59.5,"bpm":174},{"t":60,"bpm":172},{"t":60.5,"bpm":170},{"t":61,"bpm":169}]};
+
+</script>
+<script>
+const {createElement:e, useState}=React;
+const {RadarChart,Radar,PolarGrid,PolarAngleAxis,PolarRadiusAxis,
+       BarChart,Bar,LineChart,Line,AreaChart,Area,XAxis,YAxis,CartesianGrid,
+       Tooltip,Legend,ResponsiveContainer,Cell,ReferenceLine}=Recharts;
+const O="#E05D29";
+const R=REPORT;
+
+const mmss=s=>{if(s==null)return"--:--";const n=Math.abs(Math.round(s));return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");};
+const signed=s=>(s>=0?"+":"-")+mmss(s);
+
+/* 브랜드 로고 */
+function Logo({size="text-xl"}){
+  return e("div",{className:`${size} tracking-tighter leading-none`},
+    e("span",{className:"font-extrabold text-hyrox"},"XON"),
+    e("span",{className:"font-light p-text"}," TRAINING"));
+}
+function Section({title,sub,children,brk}){
+  return e("section",{className:"print-block mb-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-4 md:p-5 p-card"+(brk?" print-break":"")},
+    e("h2",{className:"text-lg font-black p-text"},title),
+    sub?e("p",{className:"text-xs text-neutral-500 mt-0.5 mb-3 p-muted"},sub):e("div",{className:"mb-3"}),
+    children);
+}
+
+function severityBadge(sev){
+  const map={minimal:["최소","text-green-400 bg-green-500/10"],mild:["경미","text-yellow-400 bg-yellow-500/10"],
+    moderate:["중간","text-orange-400 bg-orange-500/10"],severe:["심각","text-red-400 bg-red-500/10"]};
+  const [ko,cls]=map[sev]||["-",""];
+  return e("span",{className:`text-[10px] font-black px-1.5 py-0.5 rounded ${cls}`},ko);
+}
+
+function App(){
+  const [ai,setAi]=useState(false);
+  const a=R.analysis, at=R.athlete;
+
+  // 목표 vs 실제
+  const cmp=R.splits.map(s=>({name:(s.label==="Run"?"Run":s.label).replace(/ .*/,""),
+    목표:s.target,실제:s.sec, over:s.sec>s.target}));
+  // 방사형
+  const radar=a.radar;
+  // Stationary Tax 차트
+  const taxData=a.taxes.map(t=>({name:t.label,드롭:t.dropPct,z:t.z,group:t.group}));
+
+  return e("div",{className:"max-w-5xl mx-auto p-4 md:p-6"},
+    // 인쇄 버튼
+    e("div",{className:"no-print flex items-center justify-between mb-5"},
+      e("p",{className:"text-xs text-neutral-500"},"룰 엔진 정량 분석 → Gemini 처방. A4 인쇄/PDF 저장 가능."),
+      e("button",{onClick:()=>window.print(),
+        className:"bg-hyrox hover:bg-[#c94e20] text-white font-bold px-5 py-2.5 rounded-xl"},"🖨 PDF 저장 / 인쇄")),
+
+    // 헤더
+    e("header",{className:"print-block mb-5 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 p-card"},
+      e("div",{className:"flex flex-wrap items-start justify-between gap-3"},
+        e("div",null,
+          e(Logo,{size:"text-lg"}),
+          e("h1",{className:"text-2xl md:text-3xl font-black mt-2 p-text"},"엘리트 분석 리포트"),
+          e("p",{className:"text-neutral-400 mt-1 p-sub"},
+            e("span",{className:"text-lg font-bold text-white p-text"},at.name),
+            ` ${at.en} · ${at.div} · ${at.age}`)),
+        e("div",{className:"text-right"},
+          e("p",{className:"text-[10px] uppercase tracking-widest text-neutral-500 p-muted"},"프로파일"),
+          e("p",{className:"text-2xl font-black text-hyrox"},a.tendency),
+          e("p",{className:"text-[11px] text-neutral-500 p-muted mt-1"},`측정일 ${at.date}`)))),
+
+    // 요약 카드
+    e("div",{className:"print-block grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4"},
+      [["총 기록",mmss(R.totalSec),`목표 ${mmss(at.targetSec)}`,R.totalSec>at.targetSec?"text-red-400":"text-green-400"],
+       ["기준 러닝",mmss(a.baseline.mean),`편차 ±${a.baseline.sd}초`,"text-neutral-100 p-text"],
+       ["근력종목 Tax",`+${a.strengthDrop}%`,"Sled 계열","text-red-400"],
+       ["체중종목 Tax",`+${a.bodyweightDrop}%`,"Burpee+Lunge","text-orange-400"]].map((c,i)=>
+        e("div",{key:i,className:"rounded-xl border border-neutral-800 bg-neutral-950 p-3 p-card"},
+          e("p",{className:"text-[10px] uppercase tracking-widest text-neutral-500 p-muted"},c[0]),
+          e("p",{className:`text-2xl font-black tabular ${c[3]}`},c[1]),
+          e("p",{className:"text-[11px] text-neutral-600 mt-0.5 p-muted"},c[2])))),
+
+    // 프로파일 설명
+    e("div",{className:"print-block mb-4 rounded-2xl border border-hyrox/40 bg-hyrox/10 p-4 p-card"},
+      e("p",{className:"text-sm font-black text-hyrox mb-1"},`${a.tendency} · ${a.profile}`),
+      e("p",{className:"text-sm text-neutral-200 leading-relaxed p-text"},a.profileDesc)),
+
+    // 1. 방사형 + 강약점
+    e("div",{className:"grid grid-cols-1 lg:grid-cols-2 gap-4"},
+      e(Section,{title:"1. 종합 능력 프로파일",sub:"룰 엔진 5축 · 100점 만점"},
+        e("div",{className:"h-64 chart-h"},
+          e(ResponsiveContainer,{width:"100%",height:"100%"},
+            e(RadarChart,{data:radar},
+              e(PolarGrid,{stroke:"#404040"}),
+              e(PolarAngleAxis,{dataKey:"axis",tick:{fill:"#a3a3a3",fontSize:11}}),
+              e(PolarRadiusAxis,{domain:[0,100],tick:{fill:"#525252",fontSize:9}}),
+              e(Radar,{dataKey:"score",stroke:O,fill:O,fillOpacity:0.5})))),
+      ),
+      e(Section,{title:"2. 강점 · 약점",sub:"방사형 상·하위 항목"},
+        e("div",{className:"space-y-3"},
+          e("div",null,
+            e("p",{className:"text-[11px] uppercase tracking-widest text-green-500 mb-1.5"},"STRENGTHS 강점"),
+            a.strengths.map((s,i)=>e("div",{key:i,className:"flex items-center justify-between py-1.5 border-b border-neutral-800/50 p-card"},
+              e("span",{className:"text-sm text-neutral-200 p-text"},s.axis),
+              e("span",{className:"text-sm font-black text-green-400 tabular"},s.score)))),
+          e("div",null,
+            e("p",{className:"text-[11px] uppercase tracking-widest text-red-500 mb-1.5"},"WEAKNESSES 약점"),
+            a.weaknesses.map((s,i)=>e("div",{key:i,className:"flex items-center justify-between py-1.5 border-b border-neutral-800/50 p-card"},
+              e("span",{className:"text-sm text-neutral-200 p-text"},s.axis),
+              e("span",{className:"text-sm font-black text-red-400 tabular"},s.score))))))),
+
+    // 3. Stationary Tax
+    e(Section,{title:"3. Stationary Tax · 종목별 페이스 저하",
+      sub:`기준선(깨끗한 러닝 ${mmss(a.baseline.mean)})을 넘어선 정도. z는 이 선수 러닝 편차의 몇 배인지를 뜻합니다(고정 임계 아님).`},
+      e("div",{className:"h-56 chart-h mb-3"},
+        e(ResponsiveContainer,{width:"100%",height:"100%"},
+          e(BarChart,{data:taxData,margin:{top:5,right:5,left:-15,bottom:5}},
+            e(CartesianGrid,{strokeDasharray:"3 3",stroke:"#262626"}),
+            e(XAxis,{dataKey:"name",tick:{fill:"#737373",fontSize:10}}),
+            e(YAxis,{tick:{fill:"#737373",fontSize:10},label:{value:"드롭 %",angle:-90,position:"insideLeft",fill:"#737373",fontSize:10}}),
+            e(Tooltip,{contentStyle:{background:"#0A0A0A",border:"1px solid #404040",borderRadius:8},formatter:(v)=>`+${v}%`}),
+            e(Bar,{dataKey:"드롭",radius:[3,3,0,0]},
+              taxData.map((d,i)=>e(Cell,{key:i,fill:d.group==="strength"?O:"#fb923c"})))))),
+      e("div",{className:"space-y-1.5"},
+        a.taxes.map((t,i)=>e("div",{key:i,className:"flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-800 p-card"},
+          e("div",{className:"flex items-center gap-2 min-w-0"},
+            severityBadge(t.severity),
+            e("span",{className:"text-sm text-neutral-300 p-text truncate"},`${t.label} 직후 러닝`)),
+          e("div",{className:"flex items-center gap-3 shrink-0"},
+            e("span",{className:"text-[11px] text-neutral-600 tabular p-muted"},`회복 ${t.hrRecovery??"-"}bpm`),
+            e("span",{className:"text-[11px] text-neutral-500 tabular p-muted"},`z=${t.z}`),
+            e("span",{className:`text-sm font-black tabular ${t.dropPct>12?"text-red-400":t.dropPct>6?"text-orange-400":"text-green-400"}`},`+${t.dropPct}%`))))))
+    ,
+
+    // 4. 목표 vs 실제
+    e(Section,{title:"4. 목표 대비 실제 기록"},
+      e("div",{className:"h-64 chart-h"},
+        e(ResponsiveContainer,{width:"100%",height:"100%"},
+          e(BarChart,{data:cmp,margin:{top:5,right:5,left:-15,bottom:40}},
+            e(CartesianGrid,{strokeDasharray:"3 3",stroke:"#262626"}),
+            e(XAxis,{dataKey:"name",angle:-45,textAnchor:"end",height:60,tick:{fill:"#737373",fontSize:9}}),
+            e(YAxis,{tick:{fill:"#737373",fontSize:10}}),
+            e(Tooltip,{contentStyle:{background:"#0A0A0A",border:"1px solid #404040",borderRadius:8},formatter:v=>mmss(v)}),
+            e(Legend,{wrapperStyle:{fontSize:12}}),
+            e(Bar,{dataKey:"목표",fill:"#525252",radius:[3,3,0,0]}),
+            e(Bar,{dataKey:"실제",fill:O,radius:[3,3,0,0]}))))),
+
+    // 5. 심박 추이
+    e(Section,{title:"5. 심박 추이 · Start → Finish",sub:`추정 최대심박 ${at.maxHr}bpm`},
+      e("div",{className:"h-52 chart-h"},
+        e(ResponsiveContainer,{width:"100%",height:"100%"},
+          e(AreaChart,{data:R.hrTrend,margin:{top:5,right:5,left:-15,bottom:5}},
+            e("defs",null,
+              e("linearGradient",{id:"hg",x1:"0",y1:"0",x2:"0",y2:"1"},
+                e("stop",{offset:"0%",stopColor:O,stopOpacity:0.5}),
+                e("stop",{offset:"100%",stopColor:O,stopOpacity:0}))),
+            e(CartesianGrid,{strokeDasharray:"3 3",stroke:"#262626"}),
+            e(XAxis,{dataKey:"t",tick:{fill:"#737373",fontSize:10},label:{value:"경과(분)",position:"insideBottom",offset:-3,fill:"#737373",fontSize:10}}),
+            e(YAxis,{domain:[130,185],tick:{fill:"#737373",fontSize:10}}),
+            e(Tooltip,{contentStyle:{background:"#0A0A0A",border:"1px solid #404040",borderRadius:8},formatter:v=>v+" bpm"}),
+            e(ReferenceLine,{y:Math.round(at.maxHr*0.9),stroke:"#ef4444",strokeDasharray:"4 4"}),
+            e(ReferenceLine,{y:Math.round(at.maxHr*0.8),stroke:O,strokeDasharray:"4 4"}),
+            e(Area,{type:"monotone",dataKey:"bpm",stroke:O,strokeWidth:2,fill:"url(#hg)",dot:false}))))),
+
+    // 6. Gemini
+    e(Section,{title:"6. AI 코칭 처방 (Gemini)",sub:"위 정량 수치를 근거로 생성된 맞춤 훈련 처방",brk:true},
+      !ai
+        ? e("div",{className:"no-print text-center py-6"},
+            e("button",{onClick:()=>setAi(true),
+              className:"bg-hyrox hover:bg-[#c94e20] text-white font-bold px-6 py-3 rounded-xl"},"AI 코칭 처방 생성"),
+            e("p",{className:"text-[11px] text-neutral-600 mt-2"},"실제 배포 시 Gemini API 호출 · 프리뷰는 예시 응답"))
+        : e("div",{className:"space-y-4"},
+            e("p",{className:"text-neutral-200 leading-relaxed text-sm p-text"},R.gemini.summary),
+            e("div",{className:"grid grid-cols-1 md:grid-cols-2 gap-4"},
+              e("div",{className:"rounded-xl border border-neutral-800 bg-neutral-900 p-4 p-card"},
+                e("p",{className:"text-[11px] uppercase tracking-widest text-neutral-500 mb-2 p-muted"},"4주 훈련 우선순위"),
+                e("ul",{className:"space-y-1.5"},R.gemini.priorities.map((p,i)=>
+                  e("li",{key:i,className:"text-sm text-neutral-300 flex gap-2 p-text"},
+                    e("span",{className:"text-hyrox font-black"},i+1),e("span",null,p))))),
+              e("div",{className:"rounded-xl border border-neutral-800 bg-neutral-900 p-4 p-card"},
+                e("p",{className:"text-[11px] uppercase tracking-widest text-neutral-500 mb-2 p-muted"},"실전 당일 팁"),
+                e("ul",{className:"space-y-1.5"},R.gemini.race_tactics.map((p,i)=>
+                  e("li",{key:i,className:"text-sm text-neutral-300 flex gap-2 p-text"},
+                    e("span",{className:"text-hyrox"},"•"),e("span",null,p)))))),
+            e("div",null,
+              e("p",{className:"text-[11px] uppercase tracking-widest text-neutral-500 mb-2 p-muted"},"종목별 실전 기법"),
+              e("div",{className:"space-y-2"},R.gemini.station_drills.map((d,i)=>
+                e("div",{key:i,className:"rounded-lg border border-neutral-800 bg-neutral-900 p-3 p-card"},
+                  e("p",{className:"text-hyrox font-semibold text-sm"},d.station),
+                  e("p",{className:"text-neutral-300 text-sm mt-0.5 p-text"},d.drill))))))),
+
+    // 푸터
+    e("footer",{className:"print-block mt-6 pt-5 border-t border-neutral-800 p-card flex items-center justify-between"},
+      e("p",{className:"text-[11px] text-neutral-500 p-muted"},"ⓒ sunbo kang. All rights reserved."),
+      e(Logo,{size:"text-lg"})));
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+</script>
+</body>
+</html>

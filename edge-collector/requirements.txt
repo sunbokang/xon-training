@@ -1,0 +1,7 @@
+# Phase 1 (BLE) 필수
+bleak==0.22.3
+paho-mqtt==2.1.0
+numpy==1.26.4
+
+# Phase 2 (ANT+) 전환 시 주석 해제
+# openant==1.3.0
