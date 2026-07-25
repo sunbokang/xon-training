@@ -1,18 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>XON TRAINING · Integrated Console v7</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{hyrox:"#E05D29",base:"#0A0A0A"}}}};</script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  html,body{background:#0A0A0A;margin:0;}
+  .tabular{font-variant-numeric:tabular-nums;}
+  .touch-safe{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;}
+  .btn-press{transition:transform 90ms ease,background-color 120ms ease;}
+  .btn-press:active{transform:scale(.97);}
+  @keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 8px currentColor;}50%{opacity:.45;box-shadow:0 0 2px currentColor;}}
+  .dot-live{animation:pulseDot 1.4s ease-in-out infinite;}
+  @keyframes glow{0%,100%{opacity:1;box-shadow:0 0 12px #E05D29;}50%{opacity:.55;box-shadow:0 0 4px #E05D29;}}
+  .step-active{animation:glow 1.1s ease-in-out infinite;}
+  @keyframes hb{0%,100%{transform:scale(1);}12%{transform:scale(1.035);}24%{transform:scale(1);}}
+  .heartbeat{animation:hb .72s ease-in-out infinite;transform-origin:left center;}
+  @keyframes slideIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  .split-new{animation:slideIn 220ms ease-out;}
+  @keyframes idle{0%,100%{opacity:.30;}50%{opacity:.16;}}
+  .idle-pulse{animation:idle 3.2s ease-in-out infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .animate-spin{animation:spin .8s linear infinite;}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:#0A0A0A;}
+  ::-webkit-scrollbar-thumb{background:#404040;border-radius:3px;}
+  .view{display:none;} .view.active{display:block;}
+  .fs{display:none;} .fs.active{display:flex;}
+  #scan-modal{display:none;} #scan-modal.active{display:flex;align-items:center;justify-content:center;}
+  .recharts-surface{overflow:visible;}
+</style>
+</head>
+<body class="text-white touch-safe">
+
+<header class="sticky top-0 z-40 bg-base/95 backdrop-blur border-b border-neutral-800">
+  <div class="max-w-7xl mx-auto px-4 py-2.5">
+    <div class="flex items-center justify-between gap-3 mb-2.5">
+      <div class="text-xl tracking-tighter leading-none text-neutral-300">
+        <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-[11px] text-neutral-600 hidden sm:inline">INTEGRATED CONSOLE</span>
+        <span class="text-xs text-hyrox font-black tabular" id="wallclock">--:--:--</span>
+      </div>
+    </div>
+    <div class="grid grid-cols-4 gap-2">
+      <button onclick="showView('admin')" id="nav-admin" class="py-2.5 rounded-xl font-bold text-sm btn-press">⚙ ADMIN</button>
+      <button onclick="showView('referee')" id="nav-referee" class="py-2.5 rounded-xl font-bold text-sm btn-press">▶ REFEREE</button>
+      <button onclick="showView('tv')" id="nav-tv" class="py-2.5 rounded-xl font-bold text-sm btn-press">📺 TV</button>
+      <button onclick="showView('report')" id="nav-report" class="py-2.5 rounded-xl font-bold text-sm btn-press">📊 REPORT</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-4 pb-24">
+
+<div id="view-admin" class="view active">
+  <div class="mb-4">
+    <h1 class="text-2xl font-black">디스플레이 <span class="text-hyrox">통제 센터</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">BLE 오토스캔 · TV 매핑 · 존 개인화 · 시차 출발.</p>
+  </div>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 mb-4">
+    <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-3">Display Control Center</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4" id="tv-control"></div>
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Live Preview</p>
+      <span class="text-[11px] text-hyrox font-bold" id="preview-label">—</span>
+    </div>
+    <div class="w-full rounded-xl overflow-hidden border border-neutral-800 bg-black" style="aspect-ratio:16/9">
+      <div id="tv-preview" class="w-full h-full"></div>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-4" id="admin-rows"></div>
+</div>
+
+<div id="view-referee" class="view">
+  <div class="mb-3">
+    <h1 class="text-2xl font-black">측정관 <span class="text-hyrox">통제 패널</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">탭으로 선수 전환 · 중앙 대형 버튼으로 구간 기록.</p>
+  </div>
+  <div class="grid grid-cols-4 gap-1.5 mb-4" id="ref-tabs"></div>
+  <div id="ref-body"></div>
+</div>
+
+<div id="view-tv" class="view">
+  <div class="mb-4">
+    <h1 class="text-2xl font-black">TV <span class="text-hyrox">출력 미리보기</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">좌우 분할 · 각 TV 브라우저에서 전체화면(F11).</p>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="tv-grid"></div>
+</div>
+
+<div id="view-report" class="view">
+  <div class="mb-4">
+    <h1 class="text-2xl font-black">엘리트 <span class="text-hyrox">분석 리포트</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">룰 엔진 정량 분석 → Gemini 처방. 별도 리포트 페이지는 report-preview.html.</p>
+  </div>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-6 text-center">
+    <p class="text-neutral-400 mb-2">종목별 프로파일링 리포트는 전용 페이지에서 확인하세요.</p>
+    <p class="text-sm text-neutral-600">패키지의 <span class="text-hyrox font-mono">report-preview.html</span> 을 열면 정원준 선수의 룰 기반 분석 + 방사형 차트 + Gemini 처방 + PDF 인쇄를 볼 수 있습니다.</p>
+  </div>
+</div>
+
+</main>
+
+<footer class="fixed bottom-0 left-0 right-0 z-30 border-t border-neutral-800 bg-base/95 backdrop-blur">
+  <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
+    <p class="text-[11px] text-neutral-600">ⓒ sunbo kang. All rights reserved.</p>
+    <div class="text-xl tracking-tighter leading-none text-neutral-300">
+      <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
+    </div>
+  </div>
+</footer>
+
+<div id="fs-overlay" class="fs fixed inset-0 z-50 bg-base flex-col">
+  <div id="fs-content" class="flex-1 min-h-0"></div>
+  <footer class="shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-neutral-800">
+    <p class="text-neutral-600" style="font-size:1.3vh">ⓒ sunbo kang</p>
+    <div class="tracking-tighter leading-none text-neutral-400" style="font-size:1.9vh">
+      <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
+    </div>
+  </footer>
+  <div class="absolute top-3 right-3 z-50 flex items-center gap-2">
+    <span class="px-2 py-1 rounded-lg bg-hyrox/20 text-hyrox text-xs font-black" id="fs-label">TV</span>
+    <button onclick="closeTv()" class="px-3 py-1.5 rounded-lg bg-neutral-800/80 text-neutral-300 text-xs font-bold btn-press">✕ ESC</button>
+  </div>
+</div>
+
+<!-- BLE 스캔 모달 -->
+<div id="scan-modal" class="fixed inset-0 z-[60] p-4"></div>
+
 <script>
-// Supabase 클라이언트 안전 초기화
+/* Supabase 클라이언트 안전 초기화 */
 const SUPABASE_URL = "https://vurxqetjfzliemazmmft.supabase.co";
 const SUPABASE_KEY = window.SUPABASE_KEY || "";
 let supabase = null;
 
 try {
-  if (window.supabase && SUPABASE_KEY && SUPABASE_KEY.length > 10) {
+  if (window.supabase && typeof window.supabase.createClient === 'function' && SUPABASE_KEY) {
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
-} catch(e) {
-  console.log("Supabase initialization bypassed:", e);
+} catch (e) {
+  console.log("Supabase Client Bypass:", e);
 }
 
-/* SVG 및 아이콘 빌더 */
+/* ── SVG 및 아이콘 빌더 ── */
 function svg(inner, opts = {}) {
   const { vb = "0 0 24 24", fill = "none", stroke = "currentColor", sw = 2 } = opts;
   return `<svg viewBox="${vb}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full">${inner}</svg>`;
@@ -132,11 +271,12 @@ function buildGuidance(totalSec){
 function mmss(sec){ if(sec==null||isNaN(sec)) return "--:--"; const n=Math.abs(Math.round(sec)); return `${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`; }
 function signed(sec){ if(sec==null||isNaN(sec)) return "--:--"; return (sec>=0?"+":"-")+mmss(sec); }
 
+/* 실제 기기 athlete_1 배정을 위한 선수 슬롯 구조 */
 const ATHLETES = [
-  {id:1, name:"선수 1", en:"Athlete 1", div:"MEN PRO", age:"30-34", ageNum:30, maxHrManual:null, targetSec:3600, sensor:"athlete_1", device:"BLE HR Sensor 1"},
-  {id:2, name:"선수 2", en:"Athlete 2", div:"MEN PRO", age:"30-34", ageNum:30, maxHrManual:null, targetSec:3600, sensor:"athlete_2", device:"BLE HR Sensor 2"},
-  {id:3, name:"선수 3", en:"Athlete 3", div:"MEN PRO", age:"30-34", ageNum:30, maxHrManual:null, targetSec:3600, sensor:"athlete_3", device:"BLE HR Sensor 3"},
-  {id:4, name:"선수 4", en:"Athlete 4", div:"MEN PRO", age:"30-34", ageNum:30, maxHrManual:null, targetSec:3600, sensor:"athlete_4", device:"BLE HR Sensor 4"},
+  {id:1, name:"정원준", en:"Wonjoon Jung", div:"MEN PRO", age:"30-34", ageNum:32, maxHrManual:null, targetSec:3600, sensor:"athlete_1", device:"Garmin HRM-Pro"},
+  {id:2, name:"동주봉", en:"Bong Bong",    div:"MEN PRO", age:"30-34", ageNum:33, maxHrManual:null, targetSec:3600, sensor:"athlete_2", device:"Garmin HRM-Pro"},
+  {id:3, name:"강지웅", en:"Jiwoong Kang", div:"MEN PRO", age:"30-34", ageNum:31, maxHrManual:186,  targetSec:4200, sensor:"athlete_3", device:"Garmin HRM-Pro"},
+  {id:4, name:"강선보", en:"Sunbo Kang",   div:"MEN PRO", age:"35-39", ageNum:37, maxHrManual:null, targetSec:4500, sensor:"athlete_4", device:"Garmin HRM-Pro"},
 ];
 
 const TVS = {
@@ -192,6 +332,7 @@ function computeMetrics(st, now){
           curSeq:finished?null:SEQ[done]};
 }
 
+/* ★ Supabase 실시간 수집 연동 (예외 안전 처리) */
 async function fetchRealtimeHeartRate() {
   if(!supabase) return;
   try {
@@ -938,7 +1079,9 @@ function renderAll(){
     `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
 }
 
-// 최초 렌더링 세팅
+// 최초 렌더링 및 타이머 세팅
 showView("admin");
 setInterval(renderAll, 1000);
 </script>
+</body>
+</html>
