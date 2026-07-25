@@ -1690,6 +1690,8 @@ function renderBroker(){
   const el=document.getElementById("broker-panel");
   if(!el) return;
   if(!brokerPanel.open){ el.classList.remove("active"); el.innerHTML=""; return; }
+  // 이미 열려 있으면 재생성 금지
+  if(el.classList.contains("active") && el.innerHTML.trim()!=="") return;
   el.classList.add("active");
   const c=LiveMqtt.loadConfig();
   let scanUrl="http://localhost:8765/scan";
@@ -1805,6 +1807,8 @@ function renderAthleteForm(){
   const el=document.getElementById("athlete-form");
   if(!el) return;
   if(!athleteForm.open){ el.classList.remove("active"); el.innerHTML=""; return; }
+  // ★ 이미 열려 있으면 재생성 금지 — 매초 renderAll이 입력값을 초기화하는 것을 방지
+  if(el.classList.contains("active") && el.innerHTML.trim()!=="") return;
   el.classList.add("active");
   const editing=athleteForm.editId!=null;
   const st=editing?S[athleteForm.editId]:null;
