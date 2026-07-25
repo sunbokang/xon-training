@@ -549,7 +549,8 @@ const STALE_MS = 4000;
 function tickConnection(now){
   now = now ?? Date.now();
   Object.values(S).forEach(st=>{
-    if(st.lastRxAt && (now - st.lastRxAt) > STALE_MS){
+    if(!st.lastRxAt) return;   // 한 번도 수신 안 한 선수는 건드리지 않음
+    if((now - st.lastRxAt) > STALE_MS){
       st.connected = false;
       st.bpm = 0; st.rmssd = null; st.gct = null; st.cadence = null; st.respiration = null;
     }
