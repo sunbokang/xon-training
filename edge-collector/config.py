@@ -26,10 +26,10 @@ RMSSD_WINDOW_SEC = 30
 #
 # [사용법] SCAN_MODE=True 로 실행 → 주소 확인 → 여기 채우기 → False
 SENSOR_MAP = {
-    "C6:33:B5:9D:8F:B4": "athlete_1",
-    "C9:F6:A9:D5:2B:9D": "athlete_2",
+    "C6:33:B5:9D:8F:B4": "athlete_1",  # HRMPro+:599846 (가민)
+    "C9:F6:A9:D5:2B:9D": "athlete_2",  # HRM 600
     # "AA:BB:CC:77:88:99": "athlete_3",
-    "FC:31:BF:32:3E:E7": "athlete_4",
+    # "FC:31:BF:32:3E:E7": "athlete_4",
 }
 
 SCAN_MODE = False   # True: 스캔 후 종료 / False: 수집

@@ -10,6 +10,7 @@
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
 <script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   html,body{background:#0A0A0A;margin:0;}
   .tabular{font-variant-numeric:tabular-nums;}
@@ -41,7 +42,50 @@ const {RadarChart,Radar,PolarGrid,PolarAngleAxis,PolarRadiusAxis,
        BarChart,Bar,LineChart,Line,AreaChart,Area,XAxis,YAxis,CartesianGrid,
        Tooltip,Legend,ResponsiveContainer,Cell,ReferenceLine}=Recharts;
 const O="#E05D29";
-const R=REPORT;
+let R=REPORT;   // 기본: 내장 예시 데이터. ?athlete=<dbId> 있으면 DB에서 로드.
+
+/* URL 파라미터로 실제 DB 리포트 로드 (선택) */
+async function tryLoadFromDB(){
+  const params=new URLSearchParams(location.search);
+  const dbId=params.get("athlete");
+  if(!dbId) return null;
+  // Supabase 설정 (localStorage 공유)
+  let cfg={url:"",key:""};
+  try{ cfg=JSON.parse(localStorage.getItem("xon_supabase_cfg")||"{}"); }catch(e){}
+  if(!cfg.url||!cfg.key||typeof window.supabase==="undefined") return null;
+  try{
+    const sb=window.supabase.createClient(cfg.url,cfg.key);
+    const {data:results}=await sb.from("results").select("*").eq("athlete_id",dbId).order("created_at",{ascending:false}).limit(1);
+    if(!results||!results[0]) return null;
+    const result=results[0];
+    const {data:ath}=await sb.from("target_athletes").select("*").eq("id",dbId).limit(1);
+    const {data:splits}=await sb.from("splits").select("*").eq("result_id",result.id).order("id");
+    const {data:cache}=await sb.from("analysis_cache").select("*").eq("result_id",result.id).limit(1);
+    const {data:samples}=await sb.from("live_samples").select("elapsed_sec,bpm").eq("athlete_id",dbId).order("elapsed_sec");
+    const a=(ath&&ath[0])||{};
+    const an=(cache&&cache[0])||{};
+    // DB → REPORT 형태로 변환
+    const spl=(splits||[]).map((x,i)=>({k:x.step_key,sec:Math.round(x.split_ms/1000),target:x.target_sec,label:x.label,idx:i}));
+    return {
+      athlete:{name:a.name||"선수",en:a.en_name||"",div:a.division||"",age:a.age_group||"",
+               targetSec:a.target_sec||result.target_total_sec||3600,maxHr:a.max_hr||188,
+               date:(result.created_at||"").slice(0,10)},
+      totalSec:Math.round((result.total_ms||0)/1000),
+      splits:spl,
+      analysis:{
+        baseline:{mean:an.baseline_mean||0,sd:0,cv:0},
+        taxes:an.taxes_json||[], strengthDrop:an.strength_drop, bodyweightDrop:an.bodyweight_drop,
+        avgDrop:((an.strength_drop||0)+(an.bodyweight_drop||0))/2,
+        profile:an.profile||"Unknown", tendency:({Runner:"러닝형",Strength:"스트렝스형",Balanced:"밸런스형"})[an.profile]||"분석",
+        profileDesc:"", stationEff:[], radar:an.radar_json||[],
+        strengths:(an.radar_json||[]).slice().sort((x,y)=>y.score-x.score).slice(0,2),
+        weaknesses:(an.radar_json||[]).slice().sort((x,y)=>y.score-x.score).slice(-2).reverse(),
+      },
+      gemini:result.coaching_report||{summary:result.coaching_summary||"",priorities:[],station_drills:[],race_tactics:[]},
+      hrTrend:(samples||[]).map(s=>({t:Math.round(s.elapsed_sec/60*10)/10,bpm:s.bpm})),
+    };
+  }catch(e){ console.warn("DB 로드 실패, 내장 데이터 사용:",e); return null; }
+}
 
 const mmss=s=>{if(s==null)return"--:--";const n=Math.abs(Math.round(s));return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");};
 const signed=s=>(s>=0?"+":"-")+mmss(s);
@@ -225,7 +269,15 @@ function App(){
       e(Logo,{size:"text-lg"})));
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+const _root=ReactDOM.createRoot(document.getElementById("root"));
+// DB에서 로드 시도 후 렌더 (실패 시 내장 데이터)
+(async()=>{
+  try{
+    const fromDb=await tryLoadFromDB();
+    if(fromDb) R=fromDb;
+  }catch(e){}
+  _root.render(e(App));
+})();
 </script>
 </body>
 </html>
