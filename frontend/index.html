@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>XON TRAINING · Integrated Console</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={theme:{extend:{colors:{hyrox:"#E05D29",base:"#0A0A0A"}}}};</script>
@@ -16,8 +15,7 @@
   html,body{background:#0A0A0A;margin:0;}
   .tabular{font-variant-numeric:tabular-nums;}
   .touch-safe{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;}
-  .btn-press{transition:transform 90ms ease,background-color 120ms ease;}
-  .btn-press:active{transform:scale(.97);}
+  .btn-press{transition:transform 90ms ease,background-color 120ms ease;}.btn-press:active{transform:scale(.97);}
   @keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 8px currentColor;}50%{opacity:.45;box-shadow:0 0 2px currentColor;}}
   .dot-live{animation:pulseDot 1.4s ease-in-out infinite;}
   @keyframes glow{0%,100%{opacity:1;box-shadow:0 0 12px #E05D29;}50%{opacity:.55;box-shadow:0 0 4px #E05D29;}}
@@ -26,34 +24,25 @@
   .heartbeat{animation:hb .72s ease-in-out infinite;transform-origin:left center;}
   @keyframes slideIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
   .split-new{animation:slideIn 220ms ease-out;}
-  @keyframes idle{0%,100%{opacity:.30;}50%{opacity:.16;}}
-  .idle-pulse{animation:idle 3.2s ease-in-out infinite;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-  .animate-spin{animation:spin .8s linear infinite;}
-  ::-webkit-scrollbar{width:6px;height:6px;}
-  ::-webkit-scrollbar-track{background:#0A0A0A;}
-  ::-webkit-scrollbar-thumb{background:#404040;border-radius:3px;}
-  .view{display:none;} .view.active{display:block;}
-  .fs{display:none;} .fs.active{display:flex;}
+  @keyframes idle{0%,100%{opacity:.30;}50%{opacity:.16;}}.idle-pulse{animation:idle 3.2s ease-in-out infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}.animate-spin{animation:spin .8s linear infinite;}
+  ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:#0A0A0A;}::-webkit-scrollbar-thumb{background:#404040;border-radius:3px;}
+  .view{display:none;}.view.active{display:block;}
+  .fs{display:none;}.fs.active{display:flex;}
   #scan-modal,#athlete-form,#broker-panel{display:none;}
   #scan-modal.active,#athlete-form.active,#broker-panel.active{display:flex;align-items:center;justify-content:center;}
-  .recharts-surface{overflow:visible;}
-  .hidden{display:none;}
+  .recharts-surface{overflow:visible;}.hidden{display:none;}
 </style>
 </head>
 <body class="text-white touch-safe">
 <header class="sticky top-0 z-40 bg-base/95 backdrop-blur border-b border-neutral-800">
   <div class="max-w-7xl mx-auto px-4 py-2.5">
     <div class="flex items-center justify-between gap-3 mb-2.5">
-      <div class="text-xl tracking-tighter leading-none text-neutral-300">
-        <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
-      </div>
+      <div class="text-xl tracking-tighter leading-none text-neutral-300"><span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span></div>
       <div class="flex items-center gap-2">
-        <button onclick="openBroker()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-neutral-700 text-neutral-300 flex items-center gap-1.5">
-          <span>📡</span><span id="mqtt-status" class="text-xs font-bold text-neutral-500">⚪</span>
-        </button>
+        <button onclick="openBroker()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-neutral-700 text-neutral-300 flex items-center gap-1.5"><span>📡</span><span id="mqtt-status" class="text-xs font-bold text-neutral-500">⚪</span></button>
         <span class="text-[11px] font-bold text-neutral-600" id="db-status">⚫ DB</span>
-        <button onclick="clearAllData()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-red-900 text-red-400 hover:bg-red-950/40">🗑 초기화</button>
+        <button onclick="clearAllData()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-red-900 text-red-400">🗑 초기화</button>
         <span class="text-xs text-hyrox font-black tabular" id="wallclock">--:--:--</span>
       </div>
     </div>
@@ -68,62 +57,40 @@
 <main class="max-w-7xl mx-auto px-4 py-4 pb-24">
 <div id="view-admin" class="view active">
   <div class="mb-4 flex items-start justify-between gap-3">
-    <div>
-      <h1 class="text-2xl font-black">디스플레이 <span class="text-hyrox">통제 센터</span></h1>
-      <p class="text-sm text-neutral-500 mt-0.5">선수 등록 · 심박계 매칭 · TV 매핑 · 시차 출발.</p>
-    </div>
+    <div><h1 class="text-2xl font-black">디스플레이 <span class="text-hyrox">통제 센터</span></h1><p class="text-sm text-neutral-500 mt-0.5">선수 등록 · 심박계 매칭 · TV 매핑 · 시차 출발.</p></div>
     <button onclick="openAthleteForm()" class="btn-press shrink-0 bg-hyrox hover:bg-[#c94e20] text-white font-black px-4 py-2.5 rounded-xl text-sm">+ 선수 등록</button>
   </div>
   <div id="empty-state" class="hidden rounded-2xl border-2 border-dashed border-neutral-800 p-12 text-center mb-4">
-    <p class="text-4xl mb-3">🏃</p>
-    <p class="text-lg font-black text-neutral-400 mb-1">등록된 선수가 없습니다</p>
+    <p class="text-4xl mb-3">🏃</p><p class="text-lg font-black text-neutral-400 mb-1">등록된 선수가 없습니다</p>
     <p class="text-sm text-neutral-600 mb-5">상단의 [+ 선수 등록] 버튼으로 선수를 추가하세요.</p>
     <button onclick="openAthleteForm()" class="btn-press bg-hyrox text-white font-black px-6 py-3 rounded-xl">+ 첫 번째 선수 등록</button>
   </div>
   <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 mb-4" id="tv-section" style="display:none">
     <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-3">Display Control Center</p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4" id="tv-control"></div>
-    <div class="flex items-center justify-between mb-2">
-      <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Live Preview</p>
-      <span class="text-[11px] text-hyrox font-bold" id="preview-label">—</span>
-    </div>
-    <div class="w-full rounded-xl overflow-hidden border border-neutral-800 bg-black" style="aspect-ratio:16/9">
-      <div id="tv-preview" class="w-full h-full"></div>
-    </div>
+    <div class="flex items-center justify-between mb-2"><p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Live Preview</p><span class="text-[11px] text-hyrox font-bold" id="preview-label">—</span></div>
+    <div class="w-full rounded-xl overflow-hidden border border-neutral-800 bg-black" style="aspect-ratio:16/9"><div id="tv-preview" class="w-full h-full"></div></div>
   </div>
   <div class="grid grid-cols-1 xl:grid-cols-2 gap-4" id="admin-rows"></div>
 </div>
 <div id="view-referee" class="view">
-  <div class="mb-3">
-    <h1 class="text-2xl font-black">측정관 <span class="text-hyrox">통제 패널</span></h1>
-    <p class="text-sm text-neutral-500 mt-0.5">탭으로 선수 전환 · 중앙 대형 버튼으로 구간 기록.</p>
-  </div>
+  <div class="mb-3"><h1 class="text-2xl font-black">측정관 <span class="text-hyrox">통제 패널</span></h1><p class="text-sm text-neutral-500 mt-0.5">탭으로 선수 전환 · 중앙 대형 버튼으로 구간 기록.</p></div>
   <div class="grid grid-cols-4 gap-1.5 mb-4" id="ref-tabs"></div>
   <div id="ref-body"></div>
 </div>
 <div id="view-tv" class="view">
-  <div class="mb-4">
-    <h1 class="text-2xl font-black">TV <span class="text-hyrox">출력 미리보기</span></h1>
-    <p class="text-sm text-neutral-500 mt-0.5">좌우 분할 · 각 TV 브라우저에서 전체화면(F11).</p>
-  </div>
+  <div class="mb-4"><h1 class="text-2xl font-black">TV <span class="text-hyrox">출력 미리보기</span></h1><p class="text-sm text-neutral-500 mt-0.5">좌우 분할 · 각 TV 브라우저에서 전체화면(F11).</p></div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="tv-grid"></div>
 </div>
 <div id="view-report" class="view">
-  <div class="mb-4">
-    <h1 class="text-2xl font-black">엘리트 <span class="text-hyrox">분석 리포트</span></h1>
-    <p class="text-sm text-neutral-500 mt-0.5">경기 종료 시 자동 저장된 기록을 분석합니다.</p>
-  </div>
-  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-6" id="report-list">
-    <p class="text-neutral-500 text-sm">저장된 기록을 불러오는 중...</p>
-  </div>
+  <div class="mb-4"><h1 class="text-2xl font-black">엘리트 <span class="text-hyrox">분석 리포트</span></h1><p class="text-sm text-neutral-500 mt-0.5">경기 종료 시 자동 저장된 기록을 분석합니다.</p></div>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-6" id="report-list"><p class="text-neutral-500 text-sm">저장된 기록을 불러오는 중...</p></div>
 </div>
 </main>
 <footer class="fixed bottom-0 left-0 right-0 z-30 border-t border-neutral-800 bg-base/95 backdrop-blur">
   <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
     <p class="text-[11px] text-neutral-600">ⓒ sunbo kang. All rights reserved.</p>
-    <div class="text-xl tracking-tighter leading-none text-neutral-300">
-      <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
-    </div>
+    <div class="text-xl tracking-tighter leading-none text-neutral-300"><span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span></div>
   </div>
 </footer>
 <div id="save-toast" class="hidden fixed bottom-16 left-1/2 -translate-x-1/2 z-[70] bg-neutral-900 border border-hyrox/50 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"></div>
@@ -131,9 +98,7 @@
   <div id="fs-content" class="flex-1 min-h-0"></div>
   <footer class="shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-neutral-800">
     <p class="text-neutral-600" style="font-size:1.3vh">ⓒ sunbo kang</p>
-    <div class="tracking-tighter leading-none text-neutral-400" style="font-size:1.9vh">
-      <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
-    </div>
+    <div class="tracking-tighter leading-none text-neutral-400" style="font-size:1.9vh"><span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span></div>
   </footer>
   <div class="absolute top-3 right-3 z-50 flex items-center gap-2">
     <span class="px-2 py-1 rounded-lg bg-hyrox/20 text-hyrox text-xs font-black" id="fs-label">TV</span>
@@ -997,16 +962,29 @@ const DB = (() => {
         device_model: a.device||null, sensor: a.sensor||null,
         target_sec: a.targetSec||null, max_hr: a.maxHr||null,
       };
-      // sensor 가 있으면 그것으로 충돌 해소, 없으면 name+age_group
-      const onConflict = a.sensor ? "sensor" : "name,age_group";
-      const { data, error } = await client
-        .from("target_athletes")
-        .upsert(row, { onConflict })
-        .select("id")
-        .limit(1);
-      if(error){ cfg.lastError=error.message; return null; }
-      if(data && data[0]){ dbIdCache[a.id]=data[0].id; return data[0].id; }
-    }catch(e){ cfg.lastError=String(e); }
+
+      // 캐시에 이미 있으면 UPDATE만
+      if(dbIdCache[a.id]){
+        await client.from("target_athletes").update(row).eq("id", dbIdCache[a.id]);
+        return dbIdCache[a.id];
+      }
+
+      // sensor 있으면 sensor 기준 upsert
+      if(a.sensor){
+        const { data, error } = await client
+          .from("target_athletes")
+          .upsert(row, { onConflict: "sensor" })
+          .select("id").limit(1);
+        if(error){ cfg.lastError=error.message; console.warn("[DB] upsert 오류:", error.message); return null; }
+        if(data && data[0]){ dbIdCache[a.id]=data[0].id; return data[0].id; }
+      }
+
+      // sensor 없으면 단순 insert
+      const { data: ins, error: e2 } = await client
+        .from("target_athletes").insert(row).select("id").limit(1);
+      if(e2){ cfg.lastError=e2.message; console.warn("[DB] insert 오류:", e2.message); return null; }
+      if(ins && ins[0]){ dbIdCache[a.id]=ins[0].id; return ins[0].id; }
+    }catch(e){ cfg.lastError=String(e); console.warn("[DB] 예외:", e); }
     return null;
   }
 
