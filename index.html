@@ -1,0 +1,2300 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>XON TRAINING · Integrated Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{hyrox:"#E05D29",base:"#0A0A0A"}}}};</script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  html,body{background:#0A0A0A;margin:0;}
+  .tabular{font-variant-numeric:tabular-nums;}
+  .touch-safe{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;}
+  .btn-press{transition:transform 90ms ease,background-color 120ms ease;}
+  .btn-press:active{transform:scale(.97);}
+  @keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 8px currentColor;}50%{opacity:.45;box-shadow:0 0 2px currentColor;}}
+  .dot-live{animation:pulseDot 1.4s ease-in-out infinite;}
+  @keyframes glow{0%,100%{opacity:1;box-shadow:0 0 12px #E05D29;}50%{opacity:.55;box-shadow:0 0 4px #E05D29;}}
+  .step-active{animation:glow 1.1s ease-in-out infinite;}
+  @keyframes hb{0%,100%{transform:scale(1);}12%{transform:scale(1.035);}24%{transform:scale(1);}}
+  .heartbeat{animation:hb .72s ease-in-out infinite;transform-origin:left center;}
+  @keyframes slideIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  .split-new{animation:slideIn 220ms ease-out;}
+  @keyframes idle{0%,100%{opacity:.30;}50%{opacity:.16;}}
+  .idle-pulse{animation:idle 3.2s ease-in-out infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .animate-spin{animation:spin .8s linear infinite;}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:#0A0A0A;}
+  ::-webkit-scrollbar-thumb{background:#404040;border-radius:3px;}
+  .view{display:none;} .view.active{display:block;}
+  .fs{display:none;} .fs.active{display:flex;}
+  #scan-modal,#athlete-form,#broker-panel{display:none;}
+  #scan-modal.active,#athlete-form.active,#broker-panel.active{display:flex;align-items:center;justify-content:center;}
+  .recharts-surface{overflow:visible;}
+  .hidden{display:none;}
+</style>
+</head>
+<body class="text-white touch-safe">
+
+<header class="sticky top-0 z-40 bg-base/95 backdrop-blur border-b border-neutral-800">
+  <div class="max-w-7xl mx-auto px-4 py-2.5">
+    <div class="flex items-center justify-between gap-3 mb-2.5">
+      <div class="text-xl tracking-tighter leading-none text-neutral-300">
+        <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openBroker()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-neutral-700 text-neutral-300 flex items-center gap-1.5">
+          <span>📡</span><span id="mqtt-status" class="text-xs font-bold text-neutral-500">⚪</span>
+        </button>
+        <span class="text-xs text-hyrox font-black tabular" id="wallclock">--:--:--</span>
+      </div>
+    </div>
+    <div class="grid grid-cols-4 gap-2">
+      <button onclick="showView('admin')" id="nav-admin" class="py-2.5 rounded-xl font-bold text-sm btn-press">⚙ ADMIN</button>
+      <button onclick="showView('referee')" id="nav-referee" class="py-2.5 rounded-xl font-bold text-sm btn-press">▶ REFEREE</button>
+      <button onclick="showView('tv')" id="nav-tv" class="py-2.5 rounded-xl font-bold text-sm btn-press">📺 TV</button>
+      <button onclick="showView('report')" id="nav-report" class="py-2.5 rounded-xl font-bold text-sm btn-press">📊 REPORT</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-4 pb-24">
+
+<div id="view-admin" class="view active">
+  <div class="mb-4 flex items-start justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-black">디스플레이 <span class="text-hyrox">통제 센터</span></h1>
+      <p class="text-sm text-neutral-500 mt-0.5">선수 등록 · 심박계 매칭 · TV 매핑 · 시차 출발.</p>
+    </div>
+    <button onclick="openAthleteForm()" class="btn-press shrink-0 bg-hyrox hover:bg-[#c94e20] text-white font-black px-4 py-2.5 rounded-xl text-sm">+ 선수 등록</button>
+  </div>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 mb-4">
+    <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-3">Display Control Center</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4" id="tv-control"></div>
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Live Preview</p>
+      <span class="text-[11px] text-hyrox font-bold" id="preview-label">—</span>
+    </div>
+    <div class="w-full rounded-xl overflow-hidden border border-neutral-800 bg-black" style="aspect-ratio:16/9">
+      <div id="tv-preview" class="w-full h-full"></div>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-4" id="admin-rows"></div>
+</div>
+
+<div id="view-referee" class="view">
+  <div class="mb-3">
+    <h1 class="text-2xl font-black">측정관 <span class="text-hyrox">통제 패널</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">탭으로 선수 전환 · 중앙 대형 버튼으로 구간 기록.</p>
+  </div>
+  <div class="grid grid-cols-4 gap-1.5 mb-4" id="ref-tabs"></div>
+  <div id="ref-body"></div>
+</div>
+
+<div id="view-tv" class="view">
+  <div class="mb-4">
+    <h1 class="text-2xl font-black">TV <span class="text-hyrox">출력 미리보기</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">좌우 분할 · 각 TV 브라우저에서 전체화면(F11).</p>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="tv-grid"></div>
+</div>
+
+<div id="view-report" class="view">
+  <div class="mb-4">
+    <h1 class="text-2xl font-black">엘리트 <span class="text-hyrox">분석 리포트</span></h1>
+    <p class="text-sm text-neutral-500 mt-0.5">경기 종료 시 자동 저장된 기록을 분석합니다.</p>
+  </div>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-6" id="report-list">
+    <p class="text-neutral-500 text-sm">저장된 기록을 불러오는 중...</p>
+  </div>
+</div>
+
+</main>
+
+<footer class="fixed bottom-0 left-0 right-0 z-30 border-t border-neutral-800 bg-base/95 backdrop-blur">
+  <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
+    <p class="text-[11px] text-neutral-600">ⓒ sunbo kang. All rights reserved.</p>
+    <div class="text-xl tracking-tighter leading-none text-neutral-300">
+      <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
+    </div>
+  </div>
+</footer>
+
+<!-- 저장 알림 토스트 -->
+<div id="save-toast" class="hidden fixed bottom-16 left-1/2 -translate-x-1/2 z-[70] bg-neutral-900 border border-hyrox/50 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"></div>
+
+<div id="fs-overlay" class="fs fixed inset-0 z-50 bg-base flex-col">
+  <div id="fs-content" class="flex-1 min-h-0"></div>
+  <footer class="shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-neutral-800">
+    <p class="text-neutral-600" style="font-size:1.3vh">ⓒ sunbo kang</p>
+    <div class="tracking-tighter leading-none text-neutral-400" style="font-size:1.9vh">
+      <span class="font-extrabold text-hyrox">XON</span><span class="font-light"> TRAINING</span>
+    </div>
+  </footer>
+  <div class="absolute top-3 right-3 z-50 flex items-center gap-2">
+    <span class="px-2 py-1 rounded-lg bg-hyrox/20 text-hyrox text-xs font-black" id="fs-label">TV</span>
+    <button onclick="closeTv()" class="px-3 py-1.5 rounded-lg bg-neutral-800/80 text-neutral-300 text-xs font-bold btn-press">✕ ESC</button>
+  </div>
+</div>
+
+<div id="scan-modal" class="fixed inset-0 z-[60] p-4"></div>
+<div id="athlete-form" class="fixed inset-0 z-[60] p-4"></div>
+<div id="broker-panel" class="fixed inset-0 z-[60] p-4"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   HYROX 종목 아이콘 라이브러리
+   ───────────────────────────────────────────────────────────────
+   react-icons(Fa/Gi/Bi)와 lucide-react의 아이콘 형태를 인라인 SVG로
+   구현했습니다. CDN 아이콘 폰트로는 '겹침(overlay)'과 '나란히 배치'를
+   픽셀 단위로 제어하기 어렵기 때문입니다.
+
+   React 이관 시:
+     - 단일 아이콘 → 해당 라이브러리 컴포넌트로 그대로 교체 가능
+     - 합성/오버레이 → 아래 wrapper 구조(relative + absolute)를 유지하고
+       내부만 <FaWalking/>, <FaWeightHanging/> 등으로 교체
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 공통: viewBox 24 기준 stroke 아이콘 */
+function svg(inner, opts = {}) {
+  const { vb = "0 0 24 24", fill = "none", stroke = "currentColor", sw = 2 } = opts;
+  return `<svg viewBox="${vb}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"
+    stroke-linecap="round" stroke-linejoin="round" class="w-full h-full">${inner}</svg>`;
+}
+
+/* 공통: fill 방식(Fa 계열) 아이콘 */
+function svgFill(inner, vb = "0 0 24 24") {
+  return `<svg viewBox="${vb}" fill="currentColor" class="w-full h-full">${inner}</svg>`;
+}
+
+/* ── FaRunning : 달리는 사람 ── */
+const IcRunning = () => svgFill(`
+  <circle cx="15.5" cy="4" r="2.2"/>
+  <path d="M13.9 7.2 10.6 9.1c-.6.35-.95.99-.9 1.68l.28 3.4 -1.1 3.9c-.16.6.2 1.2.8 1.35.6.16 1.2-.2 1.35-.8l1.15-4.1c.05-.2.06-.4.04-.6l-.17-2.1 2.0-1.05 1.3 2.6c.14.28.38.5.68.6l3.1 1.05c.58.2 1.2-.12 1.4-.7.2-.58-.12-1.2-.7-1.4l-2.65-.9-1.85-3.7c-.45-.9-1.5-1.3-2.44-.83z"/>
+  <path d="M8.6 12.1 6.2 13.5c-.3.17-.52.46-.6.8l-.7 3.0c-.14.6.23 1.2.83 1.34.6.14 1.2-.23 1.34-.83l.6-2.55 1.5-.87z"/>
+`);
+
+/* ── FaSkiing : 스키 타는 사람 ── */
+const IcSkiing = () => svgFill(`
+  <circle cx="16.2" cy="3.8" r="2.1"/>
+  <path d="M14.4 7.0c-.9-.35-1.9.05-2.3.92l-1.5 3.2c-.28.6-.14 1.3.35 1.75l2.05 1.85-.95 3.0c-.2.62.15 1.28.77 1.47.62.2 1.28-.15 1.47-.77l1.15-3.65c.14-.45 0-.94-.35-1.26l-1.85-1.67 1.0-2.1 1.1 1.9c.2.35.56.57.96.6l2.6.2c.63.05 1.18-.42 1.23-1.05.05-.63-.42-1.18-1.05-1.23l-2.05-.16-1.45-2.5c-.28-.48-.72-.83-1.25-1.0z"/>
+  <path d="M3.4 17.5c-.2-.6.13-1.25.73-1.44l14.6-4.6c.6-.2 1.25.13 1.44.73.2.6-.13 1.25-.73 1.44l-14.6 4.6c-.6.2-1.25-.13-1.44-.73z"/>
+`);
+
+/* ── FaRowing : 로잉 ── */
+const IcRowing = () => svgFill(`
+  <circle cx="8.2" cy="4.2" r="2.1"/>
+  <path d="M10.1 7.4c-.7-.5-1.65-.4-2.25.2L5.3 10.2c-.45.45-.55 1.15-.25 1.7l1.5 2.75c.3.55.98.78 1.55.52.6-.28.85-.98.57-1.58l-1.2-2.2 1.5-1.5 1.4 1.9c.2.28.5.46.85.5l2.5.3 2.6 3.4c.38.5 1.1.6 1.6.22.5-.38.6-1.1.22-1.6l-2.85-3.75c-.2-.26-.5-.43-.82-.47l-2.5-.3z"/>
+  <path d="M2.6 19.4c-.35-.52-.2-1.23.33-1.57l16.4-10.6c.52-.34 1.22-.19 1.56.33.34.52.19 1.22-.33 1.56L4.16 19.73c-.52.34-1.22.19-1.56-.33z"/>
+`);
+
+/* ── GiSled : 썰매 (본체) ── */
+const IcSledBody = () => svgFill(`
+  <path d="M4.2 6.5h11.2c.5 0 .9.4.9.9v1.3c0 .5-.4.9-.9.9H4.2c-.5 0-.9-.4-.9-.9V7.4c0-.5.4-.9.9-.9z"/>
+  <path d="M5.0 10.2h1.7v4.6H5.0zM12.9 10.2h1.7v4.6h-1.7z"/>
+  <path d="M2.8 15.4h14.0c.55 0 1.0.45 1.0 1.0s-.45 1.0-1.0 1.0H2.8c-.55 0-1.0-.45-1.0-1.0s.45-1.0 1.0-1.0z"/>
+  <path d="M17.0 15.4c1.6 0 2.9 1.0 2.9 2.3h-2.0c0-.3-.4-.6-.9-.6z"/>
+`);
+
+/* ── FaArrowRight / FaArrowLeft ── */
+const IcArrowRight = () => svgFill(`<path d="M13.3 4.6 21 12l-7.7 7.4-1.6-1.65 4.7-4.5H3v-2.5h13.4l-4.7-4.5z"/>`);
+const IcArrowLeft  = () => svgFill(`<path d="M10.7 4.6 3 12l7.7 7.4 1.6-1.65-4.7-4.5H21v-2.5H7.6l4.7-4.5z"/>`);
+
+/* ── lucide ArrowUpRight ── */
+const IcArrowUpRight = () => svg(`<line x1="6" y1="18" x2="18" y2="6"/><polyline points="9 6 18 6 18 15"/>`, { sw: 2.4 });
+
+/* ── GiKettlebell : 케틀벨 1개 ── */
+const IcKettlebellOne = () => svgFill(`
+  <path d="M12 2.2c-2.5 0-4.5 2-4.5 4.5 0 1.1.4 2.1 1.05 2.9C6.9 10.9 5.6 13.2 5.6 15.8c0 1.9.7 3.6 1.8 4.8h9.2c1.1-1.2 1.8-2.9 1.8-4.8 0-2.6-1.3-4.9-2.95-6.2.65-.8 1.05-1.8 1.05-2.9 0-2.5-2-4.5-4.5-4.5zm0 2.2c1.27 0 2.3 1.03 2.3 2.3S13.27 9 12 9 9.7 7.97 9.7 6.7 10.73 4.4 12 4.4z"/>
+`);
+
+/* ── FaWalking : 걷는 사람 (런지 베이스) ── */
+const IcWalking = () => svgFill(`
+  <circle cx="13.2" cy="3.9" r="2.1"/>
+  <path d="M11.6 7.1c-.85-.2-1.72.25-2.03 1.07L8.2 11.6c-.18.48-.1 1.02.2 1.43l1.7 2.28-1.6 3.6c-.27.6 0 1.3.6 1.57.6.27 1.3 0 1.57-.6l1.85-4.15c.18-.4.13-.87-.13-1.22l-1.5-2.0.9-2.35.75 2.1c.13.37.44.65.83.73l2.9.6-.55 4.5c-.08.65.38 1.24 1.03 1.32.65.08 1.24-.38 1.32-1.03l.65-5.35c.07-.6-.32-1.16-.9-1.28l-3.3-.68-1.15-3.2c-.25-.7-.85-1.2-1.6-1.36z"/>
+`);
+
+/* ── FaWeightHanging : 무게추 (런지 오버레이) ── */
+const IcWeightHanging = () => svgFill(`
+  <path d="M12 1.8c-1.9 0-3.4 1.5-3.4 3.4 0 .5.1 1 .3 1.4H6.3c-.6 0-1.1.4-1.2 1L3.3 20.4c-.1.7.4 1.3 1.2 1.3h15c.8 0 1.3-.6 1.2-1.3L18.9 7.6c-.1-.6-.6-1-1.2-1h-2.6c.2-.4.3-.9.3-1.4 0-1.9-1.5-3.4-3.4-3.4zm0 2c.8 0 1.4.6 1.4 1.4S12.8 6.6 12 6.6 10.6 6 10.6 5.2 11.2 3.8 12 3.8z"/>
+`);
+
+/* ── BiTarget : 과녁 (월볼 베이스) ── */
+const IcTarget = () => svg(`
+  <circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.4"/><circle cx="12" cy="12" r="1.8"/>
+`, { sw: 1.9 });
+
+/* ── FaCircle : 공 (월볼 오버레이) ── */
+const IcBall = () => svgFill(`<circle cx="12" cy="12" r="10"/>`);
+
+/* ═══════════════════════════════════════════════════════════════
+   합성 아이콘 빌더
+   size: px 단위 정수
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 단일 */
+function iconSingle(render, size, cls = "") {
+  return `<span class="inline-block shrink-0 ${cls}" style="width:${size}px;height:${size}px">${render()}</span>`;
+}
+
+/* GiSled + 방향 화살표 (나란히) — Sled Push / Pull */
+function iconSled(dir, size, cls = "") {
+  const arrow = dir === "right" ? IcArrowRight : IcArrowLeft;
+  const aSize = Math.round(size * 0.62);
+  const order = dir === "right"
+    ? `${IcSledBody()}</span><span class="inline-block shrink-0" style="width:${aSize}px;height:${aSize}px">${arrow()}`
+    : `${arrow()}</span><span class="inline-block shrink-0" style="width:${size}px;height:${size}px">${IcSledBody()}`;
+  const firstW = dir === "right" ? size : aSize;
+  return `<span class="inline-flex items-center gap-[1px] shrink-0 ${cls}">
+    <span class="inline-block shrink-0" style="width:${firstW}px;height:${firstW}px">${order}</span>
+  </span>`;
+}
+
+/* GiKettlebell ×2 나란히 — Farmers Carry */
+function iconFarmers(size, cls = "") {
+  const s = Math.round(size * 0.82);
+  return `<span class="inline-flex items-center gap-[1px] shrink-0 ${cls}">
+    <span class="inline-block shrink-0" style="width:${s}px;height:${s}px">${IcKettlebellOne()}</span>
+    <span class="inline-block shrink-0" style="width:${s}px;height:${s}px">${IcKettlebellOne()}</span>
+  </span>`;
+}
+
+/* FaWalking + FaWeightHanging 겹침 — Sandbag Lunges
+   걷는 사람 위(어깨 부근)에 무게추를 absolute로 올려 런지 동작 연출 */
+function iconLunges(size, cls = "") {
+  const wSize = Math.round(size * 0.52);
+  return `<span class="relative inline-block shrink-0 ${cls}" style="width:${size}px;height:${size}px">
+    <span class="absolute inset-0">${IcWalking()}</span>
+    <span class="absolute opacity-95" style="width:${wSize}px;height:${wSize}px;left:-14%;top:-6%">${IcWeightHanging()}</span>
+  </span>`;
+}
+
+/* BiTarget + FaCircle 겹침 — Wall Balls
+   과녁 상단에 공을 absolute로 올림 */
+function iconWallBalls(size, cls = "") {
+  const bSize = Math.round(size * 0.42);
+  return `<span class="relative inline-block shrink-0 ${cls}" style="width:${size}px;height:${size}px">
+    <span class="absolute inset-0">${IcTarget()}</span>
+    <span class="absolute" style="width:${bSize}px;height:${bSize}px;left:50%;top:-10%;transform:translateX(-50%)">${IcBall()}</span>
+  </span>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   구간 키 → 아이콘 HTML
+   ═══════════════════════════════════════════════════════════════ */
+function stationIcon(key, size = 16, cls = "") {
+  switch (key) {
+    case "run":        return iconSingle(IcRunning, size, cls);
+    case "ski_erg":    return iconSingle(IcSkiing, size, cls);
+    case "sled_push":  return iconSled("right", size, cls);
+    case "sled_pull":  return iconSled("left", size, cls);
+    case "burpee":     return iconSingle(IcArrowUpRight, size, cls);
+    case "rowing":     return iconSingle(IcRowing, size, cls);
+    case "farmers":    return iconFarmers(size, cls);
+    case "lunges":     return iconLunges(size, cls);
+    case "wall_balls": return iconWallBalls(size, cls);
+    default:           return iconSingle(IcRunning, size, cls);
+  }
+}
+/* ═══════════════════════════════════════════════════════════════
+   공식 16구간 — 영문 + 한글 병기 + 혼합 아이콘
+   ═══════════════════════════════════════════════════════════════ */
+const SEQ = [
+  {k:"run_1",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"ski_erg",   icon:"ski_erg",   en:"Ski Erg",            ko:"스키",        short:"SKI",   type:"station"},
+  {k:"run_2",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"sled_push", icon:"sled_push", en:"Sled Push",          ko:"슬레드 푸시", short:"PUSH",  type:"station"},
+  {k:"run_3",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"sled_pull", icon:"sled_pull", en:"Sled Pull",          ko:"슬레드 풀",   short:"PULL",  type:"station"},
+  {k:"run_4",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"burpee",    icon:"burpee",    en:"Burpee Broad Jumps", ko:"버피",        short:"BURP",  type:"station"},
+  {k:"run_5",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"rowing",    icon:"rowing",    en:"Rowing",             ko:"로잉",        short:"ROW",   type:"station"},
+  {k:"run_6",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"farmers",   icon:"farmers",   en:"Farmers Carry",      ko:"파머스 캐리", short:"FARM",  type:"station"},
+  {k:"run_7",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"lunges",    icon:"lunges",    en:"Sandbag Lunges",     ko:"런지",        short:"LUNGE", type:"station"},
+  {k:"run_8",     icon:"run",       en:"Run",                ko:"런",          short:"RUN",   type:"run"},
+  {k:"wall_balls",icon:"wall_balls",en:"Wall Balls",         ko:"월볼",        short:"WALL",  type:"station"},
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   PART 4 · Z1~Z5 개인화 로직
+   ═══════════════════════════════════════════════════════════════ */
+const ZONE_DEF = [
+  {z:1, lo:0.50, hi:0.60, name:"Recovery",  ko:"회복",   color:"#60A5FA", tw:"text-blue-400"},
+  {z:2, lo:0.60, hi:0.70, name:"Aerobic",   ko:"유산소", color:"#34D399", tw:"text-emerald-400"},
+  {z:3, lo:0.70, hi:0.80, name:"Tempo",     ko:"템포",   color:"#FBBF24", tw:"text-amber-400"},
+  {z:4, lo:0.80, hi:0.90, name:"Threshold", ko:"역치",   color:"#E05D29", tw:"text-hyrox"},
+  {z:5, lo:0.90, hi:1.10, name:"Maximum",   ko:"최대",   color:"#EF4444", tw:"text-red-500"},
+];
+
+/* 나이 → 최대심박 추정 (220 - 나이) */
+function estimateMaxHr(age){
+  const a = Number(age);
+  return (!a || a<=0) ? 190 : 220 - a;
+}
+
+/* 최대심박 → 개인 Z1~Z5 구간 재정의 */
+function buildZones(maxHr){
+  return ZONE_DEF.map(z=>({
+    ...z,
+    minBpm: Math.round(maxHr * z.lo),
+    maxBpm: Math.round(maxHr * z.hi),
+  }));
+}
+
+/* 현재 BPM이 속한 존 */
+function zoneOf(bpm, zones){
+  if(!bpm || bpm<=0) return null;
+  for(let i=zones.length-1;i>=0;i--){
+    if(bpm >= zones[i].minBpm) return zones[i];
+  }
+  return zones[0];
+}
+
+/* 존 내부에서의 진행률(게이지용, 0~100) */
+function zoneProgress(bpm, zone){
+  if(!zone) return 0;
+  const span = zone.maxBpm - zone.minBpm;
+  if(span<=0) return 0;
+  return Math.max(0, Math.min(100, ((bpm - zone.minBpm)/span)*100));
+}
+
+/* ═══ 페이싱 엔진 ═══ */
+const RUN_SHARE=.55, STATION_SHARE=.45, ROXZONE_RATIO=.10;
+const RUN_FATIGUE=[.92,.95,.97,.99,1.01,1.03,1.06,1.07];
+const STATION_W={ski_erg:.115,sled_push:.105,sled_pull:.135,burpee:.155,rowing:.115,farmers:.075,lunges:.135,wall_balls:.165};
+
+function buildGuidance(totalSec){
+  const pure=(totalSec*RUN_SHARE)/(1+ROXZONE_RATIO);
+  const basePerKm=pure/RUN_FATIGUE.reduce((a,b)=>a+b,0);
+  const stTotal=totalSec*STATION_SHARE;
+  let ri=0;
+  return SEQ.map(s=>{
+    if(s.type==="run"){
+      const b=basePerKm*RUN_FATIGUE[ri++];
+      return {k:s.k,target:Math.round(b*(1+ROXZONE_RATIO)),base:Math.round(b),rox:Math.round(b*ROXZONE_RATIO)};
+    }
+    return {k:s.k,target:Math.round(stTotal*(STATION_W[s.k]??.125))};
+  });
+}
+
+function mmss(sec){
+  if(sec==null||isNaN(sec)) return "--:--";
+  const n=Math.abs(Math.round(sec));
+  return `${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`;
+}
+function signed(sec){
+  if(sec==null||isNaN(sec)) return "--:--";
+  return (sec>=0?"+":"-")+mmss(sec);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   더미 데이터 (실력 순) — age / maxHrManual 포함
+   ═══════════════════════════════════════════════════════════════ */
+// 초기 선수 명단. 실제 운영에서는 /admin에서 직접 추가·편집합니다.
+// sensor 값은 파이썬 config.py SENSOR_MAP의 athlete_id 와 정확히 일치해야
+// 해당 선수 칸으로 실시간 데이터가 흘러갑니다.
+const ATHLETES = [
+  {id:1,name:"정원준",en:"Wonjoon Jung",sex:"M",div:"MEN PRO",age:"30-34",ageNum:32,maxHrManual:null,targetSec:3600,sensor:"athlete_1",device:"Garmin HRM-Pro"},
+  {id:2,name:"동주봉",en:"Bong Bong",   sex:"M",div:"MEN PRO",age:"30-34",ageNum:33,maxHrManual:null,targetSec:3600,sensor:"athlete_2",device:"Garmin HRM-Pro"},
+  {id:3,name:"강지웅",en:"Jiwoong Kang",sex:"M",div:"MEN PRO",age:"30-34",ageNum:31,maxHrManual:186, targetSec:4200,sensor:"athlete_3",device:"Garmin HRM-Pro"},
+  {id:4,name:"강선보",en:"Sunbo Kang",  sex:"M",div:"MEN PRO",age:"35-39",ageNum:37,maxHrManual:null,targetSec:4500,sensor:"athlete_4",device:"Garmin HRM-Pro"},
+];
+
+/* ═══ TV 매핑 ═══ */
+const TVS = {
+  tv1:{label:"TV 1", athletes:[1]},
+  tv2:{label:"TV 2", athletes:[2,3]},
+  tv3:{label:"TV 3", athletes:[4]},
+};
+function tvOfAthlete(id){
+  for(const [k,v] of Object.entries(TVS)) if(v.athletes.includes(id)) return k;
+  return null;
+}
+function assignAthlete(id, tv){
+  Object.values(TVS).forEach(t=>{ t.athletes=t.athletes.filter(x=>x!==id); });
+  if(tv && TVS[tv]) TVS[tv].athletes.push(id);
+  Object.values(TVS).forEach(t=>t.athletes.sort((a,b)=>a-b));
+}
+
+/* ═══ 런타임 상태 ═══ */
+const MAX_HR_HISTORY = 900;   // 15분치(1초 간격) — 스파크라인용
+const S={};
+ATHLETES.forEach(a=>{
+  const maxHr = a.maxHrManual ?? estimateMaxHr(a.ageNum);
+  S[a.id]={...a,
+    maxHr,
+    zones: buildZones(maxHr),
+    guidance: buildGuidance(a.targetSec),
+    started:false, startAt:null, current:0, splits:[],
+    bpm:0, rmssd:null, respiration:null, gct:null, cadence:null,
+    hrHistory:[],           // [{t: 경과초, bpm}]
+    connected:true,
+    // Part 2: 디바이스 통신 상태 매트릭스
+    latencyMs: 0,           // 최근 수신 지연(ms)
+    txCount: 0, rxCount: 0, // 송/수신 카운터 (깜빡임용)
+    lastRxAt: null,
+  };
+});
+
+/* 나이/최대심박 변경 → 존 재정의 */
+function updateAthleteHr(id, {ageNum, maxHrManual}){
+  const st=S[id], a=ATHLETES.find(x=>x.id===id);
+  if(ageNum!==undefined){ st.ageNum=ageNum; a.ageNum=ageNum; }
+  if(maxHrManual!==undefined){ st.maxHrManual=maxHrManual; a.maxHrManual=maxHrManual; }
+  st.maxHr = st.maxHrManual ?? estimateMaxHr(st.ageNum);
+  st.zones = buildZones(st.maxHr);   // ★ 존 동적 재정의
+}
+
+/* ═══ EFT / Variance ═══ */
+function computeMetrics(st, now){
+  now = now ?? Date.now();
+  const g=st.guidance, done=st.splits.length;
+  const actualCum=st.splits.reduce((a,s)=>a+s.sec,0);
+  const targetCum=g.slice(0,done).reduce((a,x)=>a+x.target,0);
+  const variance=actualCum-targetCum;
+  const elapsed=st.started?Math.floor((now-st.startAt)/1000):0;
+  const segElapsed=Math.max(0,elapsed-actualCum);
+  const finished=done>=g.length;
+  const remainTarget=g.slice(done).reduce((a,x)=>a+x.target,0);
+  const inProgTarget=finished?0:g[done].target;
+  const eft=finished?actualCum:elapsed+remainTarget-Math.min(segElapsed,inProgTarget);
+  return {done,elapsed,segElapsed,actualCum,targetCum,variance,eft,finished,
+          curTarget:finished?null:g[done].target,
+          curSeq:finished?null:SEQ[done]};
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   실시간 데이터 수신 — MQTT 페이로드를 선수 상태에 반영
+   ───────────────────────────────────────────────────────────────
+   payload 예: { timestamp, athlete_id:"athlete_1", BPM:142, RMSSD:38.2,
+                 GCT:null, CADENCE:null, RESPIRATION:null }
+   ═══════════════════════════════════════════════════════════════ */
+
+// sensor(athlete_id 문자열) → 선수 객체 빠른 조회
+function findBySensor(sensorId){
+  return Object.values(S).find(st => st.sensor === sensorId);
+}
+
+/* MQTT 메시지 1건 반영 */
+function applyLiveReading(sensorId, payload){
+  const st = findBySensor(sensorId);
+  if(!st) return false;                 // 매칭 안 된 센서는 무시
+
+  const now = Date.now();
+  const bpm = Number(payload.BPM ?? payload.bpm);
+  if(Number.isFinite(bpm) && bpm > 0) st.bpm = Math.round(bpm);
+
+  const rmssd = payload.RMSSD ?? payload.rmssd;
+  st.rmssd = (rmssd==null) ? st.rmssd : Math.round(Number(rmssd));
+
+  // Phase 2 지표: 오면 반영, null이면 유지하지 않고 비움(러닝 구간 판단은 상위)
+  const gct = payload.GCT ?? payload.gct;
+  st.gct = (gct==null) ? null : Math.round(Number(gct));
+  const cad = payload.CADENCE ?? payload.cadence;
+  st.cadence = (cad==null) ? null : Math.round(Number(cad));
+  const resp = payload.RESPIRATION ?? payload.respiration;
+  st.respiration = (resp==null) ? null : Math.round(Number(resp));
+
+  // 통신 상태
+  st.connected = true;
+  st.lastRxAt = now;
+  st.rxCount = (st.rxCount||0) + 1;
+  if(payload.timestamp){
+    // 발행 시각과 수신 시각의 차 → Latency (음수 방어)
+    const sent = typeof payload.timestamp==="number"
+      ? (payload.timestamp>2e12 ? payload.timestamp : payload.timestamp*1000)
+      : Date.parse(payload.timestamp);
+    if(Number.isFinite(sent)) st.latencyMs = Math.max(0, now - sent);
+  }
+
+  // 심박 이력 (출발한 선수만 기록 — 경과초 기준)
+  if(st.started){
+    const m = computeMetrics(st, now);
+    const t = m.elapsed;
+    const last = st.hrHistory[st.hrHistory.length-1];
+    if(!last || t > last.t) st.hrHistory.push({t, bpm: st.bpm});
+    if(st.hrHistory.length > MAX_HR_HISTORY){
+      st.hrHistory.splice(0, st.hrHistory.length - MAX_HR_HISTORY);
+    }
+  }
+  return true;
+}
+
+/* 매 초 호출 — 일정 시간 데이터 없으면 연결 끊김 처리 */
+const STALE_MS = 4000;
+function tickConnection(now){
+  now = now ?? Date.now();
+  Object.values(S).forEach(st=>{
+    if(st.lastRxAt && (now - st.lastRxAt) > STALE_MS){
+      st.connected = false;
+      st.bpm = 0; st.rmssd = null; st.gct = null; st.cadence = null; st.respiration = null;
+    }
+  });
+}
+
+/* ═══ Wave Start ═══ */
+function startAthlete(id, now){
+  const st=S[id];
+  st.started=true; st.startAt=now??Date.now();
+  st.current=0; st.splits=[]; st.hrHistory=[];
+}
+function stopAthlete(id){
+  const st=S[id];
+  st.started=false; st.startAt=null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   선수 명단 관리 (추가 / 수정 / 삭제) — /admin 등록 UI에서 호출
+   ═══════════════════════════════════════════════════════════════ */
+let _nextId = ATHLETES.reduce((mx,a)=>Math.max(mx,a.id),0) + 1;
+
+function addAthlete(info){
+  const id = _nextId++;
+  const ageNum = Number(info.ageNum)||30;
+  const maxHrManual = info.maxHrManual!=null && info.maxHrManual!=="" ? Number(info.maxHrManual) : null;
+  const targetSec = Number(info.targetSec)||3600;
+  const rec = {
+    id,
+    name: info.name || `선수 ${id}`,
+    en: info.en || "",
+    sex: info.sex || "M",
+    div: info.div || "MEN PRO",
+    age: info.age || "30-34",
+    ageNum, maxHrManual, targetSec,
+    sensor: info.sensor || "",            // 비어 있으면 스캔으로 연결
+    device: info.device || "Garmin HRM-Pro",
+  };
+  ATHLETES.push(rec);
+  const maxHr = maxHrManual ?? estimateMaxHr(ageNum);
+  S[id] = {...rec, maxHr, zones:buildZones(maxHr), guidance:buildGuidance(targetSec),
+    started:false, startAt:null, current:0, splits:[],
+    bpm:0, rmssd:null, respiration:null, gct:null, cadence:null,
+    hrHistory:[], connected:false, latencyMs:0, txCount:0, rxCount:0, lastRxAt:null};
+  return id;
+}
+
+function updateAthlete(id, info){
+  const st=S[id], a=ATHLETES.find(x=>x.id===id);
+  if(!st) return;
+  ["name","en","sex","div","age","sensor","device"].forEach(k=>{
+    if(info[k]!==undefined){ st[k]=info[k]; if(a)a[k]=info[k]; }
+  });
+  if(info.targetSec!==undefined){
+    st.targetSec=Number(info.targetSec)||st.targetSec;
+    if(a)a.targetSec=st.targetSec;
+    st.guidance=buildGuidance(st.targetSec);
+  }
+  if(info.ageNum!==undefined || info.maxHrManual!==undefined){
+    updateAthleteHr(id, {
+      ageNum: info.ageNum!==undefined?Number(info.ageNum):undefined,
+      maxHrManual: info.maxHrManual!==undefined?(info.maxHrManual===""?null:Number(info.maxHrManual)):undefined
+    });
+  }
+}
+
+function removeAthlete(id){
+  const idx=ATHLETES.findIndex(x=>x.id===id);
+  if(idx>=0) ATHLETES.splice(idx,1);
+  delete S[id];
+  Object.values(TVS).forEach(t=>{ t.athletes=t.athletes.filter(x=>x!==id); });
+}
+
+/* 센서 연결 (스캔 결과의 athlete_id를 선수에 매핑) */
+function bindSensor(athleteId, sensorId, deviceName){
+  const st=S[athleteId], a=ATHLETES.find(x=>x.id===athleteId);
+  if(!st) return;
+  st.sensor=sensorId; if(a)a.sensor=sensorId;
+  if(deviceName){ st.device=deviceName; if(a)a.device=deviceName; }
+}
+/* ═══════════════════════════════════════════════════════════════
+   PART 5 · 룰 기반 프로파일링 엔진
+   ───────────────────────────────────────────────────────────────
+   원칙: 고정 임계값("10% 넘으면 나쁨")을 쓰지 않는다.
+         선수 '자신의' 깨끗한 러닝 페이스를 기준선으로 삼아
+         상대적·통계적으로 강약점을 판정한다.
+   ═══════════════════════════════════════════════════════════════ */
+
+// 페널티 분석 쌍: 스테이션 → 직후 러닝
+const TAX_PAIRS = [
+  {station:"sled_push", run:"run_3", group:"strength",   label:"Sled Push"},
+  {station:"sled_pull", run:"run_4", group:"strength",   label:"Sled Pull"},
+  {station:"burpee",    run:"run_5", group:"bodyweight", label:"Burpee"},
+  {station:"lunges",    run:"run_8", group:"bodyweight", label:"Sandbag Lunges"},
+];
+// 깨끗한 러닝 = 페널티 직후가 아닌 러닝 (기준선 산출용)
+const CLEAN_RUNS = ["run_1","run_2","run_6","run_7"];
+
+/* 표준편차 */
+function stdev(arr, mean){
+  if(arr.length<2) return 0;
+  return Math.sqrt(arr.reduce((a,b)=>a+(b-mean)**2,0)/arr.length);
+}
+
+/**
+ * 종합 분석
+ * @param splits [{k, sec, target}]
+ * @param hrByStep { [stepKey]: {end, mid} }  // 스테이션 종료심박 / 러닝 중간심박
+ * @param guidance [{k, target}]
+ */
+function runRuleAnalysis(splits, hrByStep, guidance){
+  const byKey=Object.fromEntries(splits.map(s=>[s.k,s]));
+  const gByKey=Object.fromEntries((guidance||[]).map(g=>[g.k,g.target]));
+
+  // ── 1) 기준선: 깨끗한 러닝 평균 ± 표준편차 ──
+  const cleanTimes=CLEAN_RUNS.map(k=>byKey[k]?.sec).filter(Boolean);
+  const mean=cleanTimes.length?cleanTimes.reduce((a,b)=>a+b,0)/cleanTimes.length:0;
+  const sd=stdev(cleanTimes, mean);
+  const cv=mean?sd/mean:0;
+
+  // ── 2) Stationary Tax: 각 페널티 러닝의 드롭률 + z-score + 심박회복 ──
+  const taxes=TAX_PAIRS.map(p=>{
+    const runSec=byKey[p.run]?.sec;
+    if(!runSec||!mean) return null;
+    const dropPct=((runSec-mean)/mean)*100;
+    const z=sd>0?(runSec-mean)/sd:0;
+    const hrEnd=hrByStep?.[p.station]?.end;
+    const hrMid=hrByStep?.[p.run]?.mid;
+    const hrRecovery=(hrEnd!=null&&hrMid!=null)?hrEnd-hrMid:null; // 양수=회복됨
+    return {
+      station:p.station, run:p.run, group:p.group, label:p.label,
+      runSec, baselineSec:Math.round(mean),
+      dropPct:+dropPct.toFixed(1), z:+z.toFixed(2),
+      hrRecovery,
+      // 등급: 고정 임계가 아니라 '이 선수 러닝 편차의 몇 배인가'
+      severity: z<=1?"minimal" : z<=2?"mild" : z<=3.5?"moderate":"severe",
+    };
+  }).filter(Boolean);
+
+  // ── 3) 그룹별 평균 드롭 ──
+  const groupDrop=(g)=>{
+    const arr=taxes.filter(t=>t.group===g);
+    return arr.length?+(arr.reduce((a,t)=>a+t.dropPct,0)/arr.length).toFixed(1):null;
+  };
+  const strengthDrop=groupDrop("strength");     // Sled 계열
+  const bodyweightDrop=groupDrop("bodyweight"); // Burpee+Lunge 계열
+  const avgDrop=(strengthDrop!=null&&bodyweightDrop!=null)
+    ? +((strengthDrop+bodyweightDrop)/2).toFixed(1) : null;
+
+  // ── 4) 프로파일: 스테이션 저항력 기준 (선수 자신 러닝 대비 상대) ──
+  let profile, tendency, profileDesc;
+  if(avgDrop==null){ profile="Unknown"; tendency="분석중"; profileDesc=""; }
+  else if(avgDrop>=12){
+    profile="Runner"; tendency="러닝형";
+    profileDesc="러닝 자체는 안정적이지만 근력·체중 종목 직후 러닝에서 큰 손실이 발생합니다. 스테이션 저항력 훈련이 최우선입니다.";
+  } else if(avgDrop<=6){
+    profile="Strength"; tendency="스트렝스형";
+    profileDesc="스테이션 직후에도 러닝 페이스가 잘 유지됩니다. 순수 러닝 속도를 끌어올리면 기록이 크게 단축될 수 있습니다.";
+  } else {
+    profile="Balanced"; tendency="밸런스형";
+    profileDesc="러닝과 스테이션이 고르게 균형 잡혀 있습니다. 가장 약한 단일 종목을 찾아 집중 보완하는 전략이 유효합니다.";
+  }
+
+  // ── 5) 종목별 실행 효율 (목표 대비, 러닝 제외 스테이션) ──
+  const stationEff=splits
+    .filter(s=>!s.k.startsWith("run_"))
+    .map(s=>{
+      const tgt=gByKey[s.k];
+      const diffPct=tgt?+(((s.sec-tgt)/tgt)*100).toFixed(1):null;
+      return {k:s.k, sec:s.sec, target:tgt, diffPct};
+    });
+
+  // ── 6) 방사형 5축 (0~100, 클수록 우수) ──
+  const clamp=v=>Math.max(0,Math.min(100,Math.round(v)));
+  const runConsistency=clamp(100-cv*100*5);              // 러닝 일관성
+  const sledResist=clamp(100-(strengthDrop??0)*3);       // 슬레드 저항
+  const bodyweightResist=clamp(100-(bodyweightDrop??0)*3);// 체중종목 저항
+  // 스테이션 파워: 스테이션 목표 대비
+  const stDiffs=stationEff.map(s=>Math.abs(s.diffPct||0));
+  const stationPower=clamp(100-(stDiffs.reduce((a,b)=>a+b,0)/(stDiffs.length||1))*2);
+  // 심박 회복력
+  const recos=taxes.map(t=>t.hrRecovery).filter(v=>v!=null);
+  const hrRecoveryScore=clamp(50+(recos.reduce((a,b)=>a+b,0)/(recos.length||1))*6);
+
+  const radar=[
+    {axis:"러닝 일관성", score:runConsistency},
+    {axis:"슬레드 저항", score:sledResist},
+    {axis:"체중종목 저항", score:bodyweightResist},
+    {axis:"스테이션 파워", score:stationPower},
+    {axis:"심박 회복력", score:hrRecoveryScore},
+  ];
+
+  // ── 7) 강약점 Top/Bottom ──
+  const ranked=[...radar].sort((a,b)=>b.score-a.score);
+  const strengths=ranked.slice(0,2);
+  const weaknesses=ranked.slice(-2).reverse();
+
+  return {
+    baseline:{mean:Math.round(mean), sd:+sd.toFixed(1), cv:+cv.toFixed(3)},
+    taxes, strengthDrop, bodyweightDrop, avgDrop,
+    profile, tendency, profileDesc,
+    stationEff, radar, strengths, weaknesses,
+  };
+}
+
+/* ═══ Gemini 프롬프트 빌더 (정량 수치 → AI는 처방만) ═══ */
+function buildGeminiPrompt(athlete, analysis){
+  const taxLines=analysis.taxes.map(t=>
+    `  - ${t.label} 직후 러닝: 기준 대비 +${t.dropPct}% (${t.severity}, 심박회복 ${t.hrRecovery??"-"}bpm)`
+  ).join("\n");
+  return `당신은 HYROX 전문 코치입니다. 아래는 룰 엔진이 산출한 객관적 정량 분석입니다.
+이 수치를 근거로 이 선수만을 위한 구체적 훈련 처방을 한국어로 작성하세요.
+(수치 판단은 이미 끝났습니다. 당신은 '무엇을 어떻게 훈련할지'만 제시하세요.)
+
+[선수] ${athlete.name} (${athlete.en}) · ${athlete.div} · ${athlete.age} · 목표 ${Math.floor(athlete.targetSec/60)}분
+[프로파일] ${analysis.tendency} (${analysis.profile})
+[기준선] 깨끗한 러닝 평균 ${analysis.baseline.mean}초 (편차 ±${analysis.baseline.sd}초)
+[Stationary Tax]
+${taxLines}
+[그룹 평균] 근력종목 +${analysis.strengthDrop}% / 체중종목 +${analysis.bodyweightDrop}%
+[강점] ${analysis.strengths.map(s=>s.axis).join(", ")}
+[약점] ${analysis.weaknesses.map(s=>s.axis).join(", ")}
+
+다음 JSON만 출력:
+{"summary":"3~4문장 총평","priorities":["4주 훈련 우선순위 3개"],
+"station_drills":[{"station":"종목","drill":"구체적 훈련법"}],
+"race_tactics":["실전 팁 3개"]}`;
+}
+
+/* 더미 Gemini 응답 (프리뷰용 — 실제로는 API 호출) */
+function mockGeminiResponse(analysis){
+  const isRunner=analysis.profile==="Runner";
+  const isStrength=analysis.profile==="Strength";
+  return {
+    summary: isRunner
+      ? `러닝 엔진은 PRO급으로 안정적(편차 ±${analysis.baseline.sd}초)이지만, 근력 종목 직후 러닝에서 평균 +${analysis.strengthDrop}%의 큰 손실이 발생합니다. 종목 수행력이 아니라 '슬레드 이후 러닝 전환' 능력이 병목입니다. 이 부분만 개선해도 목표 달성이 현실적입니다.`
+      : isStrength
+      ? `스테이션 직후에도 러닝 페이스가 거의 무너지지 않습니다(평균 +${analysis.avgDrop}%). 근력·회복 능력은 이미 충분하므로, 순수 러닝 속도(기준 ${analysis.baseline.mean}초)를 끌어올리는 것이 기록 단축의 핵심 열쇠입니다.`
+      : `러닝과 스테이션이 고르게 균형 잡혀 있습니다(평균 드롭 +${analysis.avgDrop}%). 큰 약점이 없는 대신 뚜렷한 무기도 부족하니, 가장 약한 단일 축을 골라 4주간 집중 보완하세요.`,
+    priorities: isRunner
+      ? ["슬레드 직후 러닝 전환 훈련: Sled Push 50m → 즉시 400m, 기준 페이스 ±3% 유지 × 6세트",
+         "역치 지구력: Zone 4 인터벌 (4분 ON / 2분 OFF) 주 2회",
+         "슬레드 특이적 근지구력: 중량 썰매 밀기 후 즉시 러닝 접목"]
+      : isStrength
+      ? ["순수 러닝 스피드: 1km 반복주 (목표 페이스 −5초) 주 2회",
+         "러닝 이코노미: 케이던스 180 유지 드릴 + 언덕 스프린트",
+         "장거리 유산소 볼륨 확대로 러닝 기반 강화"]
+      : ["가장 약한 축 집중 보완 (방사형 최저 항목)",
+         "종목 간 전환 속도 훈련",
+         "목표 페이스 일관성 유지 인터벌"],
+    station_drills: [
+      {station:"Sled Push", drill:"보폭 절반·상체 45도 낮춰 다리 힘만으로. 25m 지점 무정지 통과 훈련."},
+      {station:"Sandbag Lunges", drill:"백을 앞쪽 랙 포지션으로. 엉덩이 주도 하강으로 대퇴사두 소모 최소화."},
+      {station:"Wall Balls", drill:"25-25-25-25 분할, 세트 간 5초 이내. 첫 25개 오버페이스 금지."},
+    ],
+    race_tactics: [
+      "첫 1km는 목표보다 5초 느리게 — 초반 과부하가 후반 붕괴의 원인",
+      "락스존에서 4-6 호흡법으로 심박 8~12bpm 낮춘 뒤 스테이션 진입",
+      "슬레드는 정지 없이 속도만 줄여 연속 진행 — 재출발이 심박을 가장 크게 올림",
+    ],
+  };
+}
+/* ═══════════════════════════════════════════════════════════════
+   live_mqtt.js · 실시간 심박 데이터 수신 (MQTT over WebSocket)
+   ───────────────────────────────────────────────────────────────
+   파이썬 수집기(main.py)가 발행하는 토픽을 브라우저에서 직접 구독합니다.
+
+     [BLE 센서] → [main.py] → [Mosquitto :9001(WS)] → 이 클라이언트 → 대시보드
+
+   ★ 중요: 더 이상 Supabase 테이블을 폴링하지 않습니다.
+      심박 데이터는 MQTT로 실시간 수신하고, Supabase는 '기록 저장'에만 씁니다.
+
+   토픽:     hyrox/live/<athlete_id>       (예: hyrox/live/athlete_1)
+   페이로드: { timestamp, athlete_id, BPM, RMSSD, GCT, CADENCE, RESPIRATION, ... }
+             ↑ 파이썬 sensors/base.py의 to_mqtt_payload() 와 정확히 일치
+   ═══════════════════════════════════════════════════════════════ */
+
+const LiveMqtt = (() => {
+  let client = null;
+  let cfg = { url: "", status: "disconnected", lastError: "" };
+  const listeners = [];          // (athlete_id, payload) => void
+  const statusListeners = [];    // (statusObj) => void
+
+  function emitStatus(){
+    statusListeners.forEach(fn => { try{ fn({...cfg}); }catch(e){} });
+  }
+
+  /* 저장된 브로커 설정 읽기 (localStorage) */
+  function loadConfig(){
+    try{
+      const raw = localStorage.getItem("xon_mqtt_cfg");
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    // 기본값: 로컬 개발용. 운영은 설정 UI에서 WSS 주소로 교체.
+    return { host:"localhost", port:9001, path:"/mqtt", useTls:false,
+             username:"", password:"" };
+  }
+  function saveConfig(c){
+    try{ localStorage.setItem("xon_mqtt_cfg", JSON.stringify(c)); }catch(e){}
+  }
+
+  function buildUrl(c){
+    const scheme = c.useTls ? "wss" : "ws";
+    const path = c.path && c.path.startsWith("/") ? c.path : "/"+(c.path||"mqtt");
+    return `${scheme}://${c.host}:${c.port}${path}`;
+  }
+
+  /* 연결 (mqtt.js UMD 전역 사용) */
+  function connect(c){
+    c = c || loadConfig();
+    saveConfig(c);
+    cfg.url = buildUrl(c);
+
+    if(typeof mqtt === "undefined"){
+      cfg.status="error"; cfg.lastError="mqtt.js 라이브러리 미로드";
+      emitStatus(); return;
+    }
+    // 기존 연결 정리
+    try{ if(client){ client.end(true); } }catch(e){}
+
+    cfg.status="connecting"; cfg.lastError=""; emitStatus();
+
+    const opts = {
+      keepalive: 30,
+      reconnectPeriod: 3000,      // 3초마다 자동 재연결
+      connectTimeout: 8000,
+      clean: true,
+      clientId: "xon-dash-" + Math.random().toString(16).slice(2,8),
+    };
+    if(c.username) opts.username = c.username;
+    if(c.password) opts.password = c.password;
+
+    try{
+      client = mqtt.connect(cfg.url, opts);
+    }catch(e){
+      cfg.status="error"; cfg.lastError=String(e); emitStatus(); return;
+    }
+
+    client.on("connect", () => {
+      cfg.status="connected"; cfg.lastError=""; emitStatus();
+      client.subscribe("hyrox/live/#", { qos:1 });
+    });
+    client.on("reconnect", () => { cfg.status="connecting"; emitStatus(); });
+    client.on("close",     () => { cfg.status="disconnected"; emitStatus(); });
+    client.on("error", (err) => {
+      cfg.status="error"; cfg.lastError=(err&&err.message)||String(err); emitStatus();
+    });
+    client.on("message", (topic, buf) => {
+      // topic: hyrox/live/athlete_1
+      const id = topic.split("/").pop();
+      let payload;
+      try{ payload = JSON.parse(buf.toString()); }catch(e){ return; }
+      listeners.forEach(fn => { try{ fn(id, payload); }catch(e){} });
+    });
+  }
+
+  function disconnect(){
+    try{ if(client) client.end(true); }catch(e){}
+    cfg.status="disconnected"; emitStatus();
+  }
+
+  return {
+    connect, disconnect, loadConfig, saveConfig, buildUrl,
+    onMessage: (fn) => listeners.push(fn),
+    onStatus:  (fn) => { statusListeners.push(fn); emitStatus(); },
+    getStatus: () => ({...cfg}),
+  };
+})();
+/* ═══════════════════════════════════════════════════════════════
+   db.js · Supabase 저장/조회 계층
+   ───────────────────────────────────────────────────────────────
+   역할 분담:
+     - 심박 실시간 표시 = MQTT (live_mqtt.js)
+     - 기록 영구 저장    = Supabase (이 파일)
+
+   저장 시점:
+     1) 선수 등록/수정 → target_athletes upsert
+     2) 실시간 심박    → live_samples 에 주기적(기본 5초) 배치 insert
+     3) 경기 종료(FINISH) → results + splits insert, analysis_cache 저장
+     4) 리포트 페이지  → 위 데이터를 읽어 렌더
+
+   설정: index.html 상단에서 SUPABASE_URL / SUPABASE_KEY 를 지정하거나
+         브로커 패널에서 입력. 키가 없으면 저장은 조용히 건너뜁니다
+         (실시간 표시는 MQTT라 영향 없음).
+   ═══════════════════════════════════════════════════════════════ */
+
+const DB = (() => {
+  let client = null;
+  let cfg = { url:"", key:"", ready:false, lastError:"" };
+  // 대시보드 athlete.id(숫자) → DB target_athletes.id(bigint) 캐시
+  const dbIdCache = {};
+  // 선수별 진행 중 세션의 live_samples 버퍼 (배치 전송)
+  const sampleBuffer = {};   // { [athleteId]: [ {elapsed_sec, bpm, ...} ] }
+  let sessionId = null;
+
+  function loadConfig(){
+    try{
+      const raw = localStorage.getItem("xon_supabase_cfg");
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return { url:(window.SUPABASE_URL||""), key:(window.SUPABASE_KEY||"") };
+  }
+  function saveConfig(c){
+    try{ localStorage.setItem("xon_supabase_cfg", JSON.stringify(c)); }catch(e){}
+  }
+
+  function init(c){
+    c = c || loadConfig();
+    saveConfig(c);
+    cfg.url = c.url; cfg.key = c.key;
+    if(!c.url || !c.key){ cfg.ready=false; cfg.lastError="URL/KEY 미설정"; return; }
+    if(typeof window.supabase==="undefined" || !window.supabase.createClient){
+      cfg.ready=false; cfg.lastError="supabase-js 미로드"; return;
+    }
+    try{
+      client = window.supabase.createClient(c.url, c.key);
+      cfg.ready = true; cfg.lastError="";
+      sessionId = new Date().toISOString().slice(0,10) + "_" + Math.random().toString(16).slice(2,6);
+    }catch(e){
+      cfg.ready=false; cfg.lastError=String(e);
+    }
+  }
+
+  function isReady(){ return cfg.ready && client; }
+  function getStatus(){ return {...cfg}; }
+
+  /* ── 1) 선수 upsert (sensor 기준) ── */
+  async function upsertAthlete(a){
+    if(!isReady()) return null;
+    try{
+      const row = {
+        name: a.name, en_name: a.en||null, gender: a.sex||null,
+        age_group: a.age||null, division: a.div||null,
+        device_model: a.device||null, sensor: a.sensor||null,
+        target_sec: a.targetSec||null, max_hr: a.maxHr||null,
+      };
+      // sensor 가 있으면 그것으로 충돌 해소, 없으면 name+age_group
+      const onConflict = a.sensor ? "sensor" : "name,age_group";
+      const { data, error } = await client
+        .from("target_athletes")
+        .upsert(row, { onConflict })
+        .select("id")
+        .limit(1);
+      if(error){ cfg.lastError=error.message; return null; }
+      if(data && data[0]){ dbIdCache[a.id]=data[0].id; return data[0].id; }
+    }catch(e){ cfg.lastError=String(e); }
+    return null;
+  }
+
+  async function resolveDbId(athlete){
+    if(dbIdCache[athlete.id]) return dbIdCache[athlete.id];
+    return await upsertAthlete(athlete);
+  }
+
+  /* ── 2) 실시간 심박 버퍼링 & 배치 flush ── */
+  function bufferSample(athlete, metrics){
+    if(!isReady() || !athlete.started) return;
+    const buf = sampleBuffer[athlete.id] || (sampleBuffer[athlete.id]=[]);
+    buf.push({
+      elapsed_sec: metrics.elapsed,
+      station_key: metrics.curSeq ? metrics.curSeq.k : null,
+      bpm: athlete.bpm||null,
+      rmssd_ms: athlete.rmssd??null,
+      gct_ms: athlete.gct??null,
+      cadence_spm: athlete.cadence??null,
+      respiration: athlete.respiration??null,
+    });
+  }
+
+  async function flushSamples(athletesById){
+    if(!isReady()) return;
+    for(const [aid, buf] of Object.entries(sampleBuffer)){
+      if(!buf.length) continue;
+      const athlete = athletesById[aid];
+      if(!athlete) { sampleBuffer[aid]=[]; continue; }
+      const dbId = await resolveDbId(athlete);
+      if(!dbId){ continue; }              // 아직 매핑 안 됨 → 다음 기회에
+      const rows = buf.splice(0, buf.length).map(s => ({
+        session_id: sessionId, athlete_id: dbId, ...s
+      }));
+      try{
+        const { error } = await client.from("live_samples").insert(rows);
+        if(error){ cfg.lastError=error.message; /* 실패분 되돌림 */ sampleBuffer[aid].unshift(...rows.map(stripIds)); }
+      }catch(e){ cfg.lastError=String(e); }
+    }
+  }
+  function stripIds(r){ const {session_id,athlete_id,...rest}=r; return rest; }
+
+  /* ── 3) 경기 종료 시 결과+스플릿 저장 ── */
+  async function saveResult(athlete, splits, analysis){
+    if(!isReady()) return null;
+    const dbId = await resolveDbId(athlete);
+    if(!dbId) return null;
+    try{
+      const totalMs = splits.reduce((a,s)=>a+s.sec,0)*1000;
+      const { data: res, error: e1 } = await client
+        .from("results")
+        .insert({
+          athlete_id: dbId,
+          total_ms: totalMs,
+          target_total_sec: athlete.targetSec||null,
+          coaching_report: analysis?.gemini || null,
+          coaching_summary: analysis?.gemini?.summary || null,
+        })
+        .select("id").limit(1);
+      if(e1 || !res || !res[0]){ cfg.lastError=e1?.message||"result insert 실패"; return null; }
+      const resultId = res[0].id;
+
+      // splits
+      let cum=0;
+      const splitRows = splits.map((s,i)=>{
+        cum += s.sec*1000;
+        return { result_id: resultId, step_key: s.k, label: s.label||s.k,
+                 split_ms: s.sec*1000, cumulative_ms: cum, target_sec: s.target||null };
+      });
+      const { error: e2 } = await client.from("splits").insert(splitRows);
+      if(e2){ cfg.lastError=e2.message; }
+
+      // analysis_cache
+      if(analysis){
+        await client.from("analysis_cache").insert({
+          athlete_id: dbId, result_id: resultId,
+          profile: analysis.profile,
+          baseline_mean: analysis.baseline?.mean??null,
+          strength_drop: analysis.strengthDrop??null,
+          bodyweight_drop: analysis.bodyweightDrop??null,
+          radar_json: analysis.radar||null,
+          taxes_json: analysis.taxes||null,
+          gemini_json: analysis.gemini||null,
+        });
+      }
+      return resultId;
+    }catch(e){ cfg.lastError=String(e); return null; }
+  }
+
+  /* ── 4) 리포트용 조회 ── */
+  async function loadLatestResult(dbAthleteId){
+    if(!isReady()) return null;
+    try{
+      const { data: results } = await client
+        .from("results").select("*")
+        .eq("athlete_id", dbAthleteId)
+        .order("created_at",{ascending:false}).limit(1);
+      if(!results || !results[0]) return null;
+      const result = results[0];
+      const { data: splits } = await client
+        .from("splits").select("*")
+        .eq("result_id", result.id).order("id",{ascending:true});
+      const { data: samples } = await client
+        .from("live_samples").select("elapsed_sec,bpm")
+        .eq("athlete_id", dbAthleteId).eq("session_id", sessionId)
+        .order("elapsed_sec",{ascending:true});
+      const { data: analysis } = await client
+        .from("analysis_cache").select("*")
+        .eq("result_id", result.id).limit(1);
+      return { result, splits:splits||[], samples:samples||[], analysis:(analysis&&analysis[0])||null };
+    }catch(e){ cfg.lastError=String(e); return null; }
+  }
+
+  async function listAthletes(){
+    if(!isReady()) return [];
+    try{
+      const { data } = await client.from("target_athletes").select("*").order("id");
+      return data||[];
+    }catch(e){ return []; }
+  }
+
+  return { init, isReady, getStatus, loadConfig, saveConfig,
+           upsertAthlete, bufferSample, flushSamples, saveResult,
+           loadLatestResult, listAthletes,
+           get sessionId(){ return sessionId; },
+           get dbIdCache(){ return dbIdCache; } };
+})();
+/* ═══════════════════════════════════════════════════════════════
+   PART 3 · 심박 변동 추이 스파크라인 (Recharts AreaChart)
+   ───────────────────────────────────────────────────────────────
+   - 출발 시점부터 현재까지의 BPM 추이
+   - 배경 투명, 존 컬러 그라데이션
+   - 프로그레스 바 바로 위에 얇고 와이드하게 배치
+   ═══════════════════════════════════════════════════════════════ */
+const { createElement: h, useState, useEffect } = React;
+const { AreaChart, Area, YAxis, ReferenceLine, ResponsiveContainer, defs } = Recharts;
+
+/**
+ * HR 스파크라인
+ * @param data    [{t, bpm}]
+ * @param zones   개인 Z1~Z5
+ * @param maxHr   개인 최대심박
+ * @param height  px
+ * @param gradId  그라데이션 고유 id (선수별로 달라야 함)
+ */
+function HrSparkline({ data, zones, maxHr, height, gradId, currentZone }){
+  if(!data || data.length<2){
+    return h("div",{
+      className:"w-full flex items-center justify-center text-neutral-700",
+      style:{height:height+"px", fontSize:"10px"}
+    },"WAITING FOR HEART RATE DATA");
+  }
+
+  // Y축 범위: 데이터 실제 범위에 여유를 주되 존 경계가 보이도록
+  const bpms=data.map(d=>d.bpm);
+  const lo=Math.min(...bpms), hi=Math.max(...bpms);
+  const yMin=Math.max(60, Math.floor(lo-8));
+  const yMax=Math.min(210, Math.ceil(hi+8));
+
+  const zColor = currentZone ? currentZone.color : "#E05D29";
+
+  // 존 경계선 (Y축 범위 안에 들어오는 것만)
+  const zoneLines = zones
+    .filter(z=>z.minBpm>yMin && z.minBpm<yMax)
+    .map(z=>h(ReferenceLine,{
+      key:"zl"+z.z, y:z.minBpm, stroke:z.color, strokeOpacity:0.28,
+      strokeDasharray:"3 3", strokeWidth:1
+    }));
+
+  return h(ResponsiveContainer,{width:"100%",height:height},
+    h(AreaChart,{data, margin:{top:2,right:0,left:0,bottom:0}},
+      h("defs",null,
+        h("linearGradient",{id:gradId, x1:"0", y1:"0", x2:"0", y2:"1"},
+          h("stop",{offset:"0%",  stopColor:zColor, stopOpacity:0.55}),
+          h("stop",{offset:"60%", stopColor:zColor, stopOpacity:0.14}),
+          h("stop",{offset:"100%",stopColor:zColor, stopOpacity:0})
+        )
+      ),
+      ...zoneLines,
+      h(YAxis,{domain:[yMin,yMax], hide:true}),
+      h(Area,{
+        type:"monotone", dataKey:"bpm",
+        stroke:zColor, strokeWidth:1.8,
+        fill:`url(#${gradId})`,
+        isAnimationActive:false, dot:false, activeDot:false
+      })
+    )
+  );
+}
+
+/* 카드 안의 스파크라인 컨테이너에 React 마운트 (재사용) */
+const _sparkRoots = {};
+function mountSparkline(containerId, st, height, currentZone){
+  const el=document.getElementById(containerId);
+  if(!el) return;
+  if(!_sparkRoots[containerId]){
+    _sparkRoots[containerId]=ReactDOM.createRoot(el);
+  }
+  _sparkRoots[containerId].render(
+    h(HrSparkline,{
+      data:st.hrHistory, zones:st.zones, maxHr:st.maxHr,
+      height, gradId:"hrgrad-"+containerId, currentZone
+    })
+  );
+}
+function unmountSparkline(containerId){
+  if(_sparkRoots[containerId]){
+    _sparkRoots[containerId].unmount();
+    delete _sparkRoots[containerId];
+  }
+}
+/* ═══════════════════════════════════════════════════════════════
+   TV 반응형 그리드
+   ═══════════════════════════════════════════════════════════════ */
+function tvGridClass(n){
+  // ★ 좌우 분할 (세로형 직사각형): 상하가 아닌 grid-cols
+  if(n<=1) return "grid-cols-1 grid-rows-1";
+  if(n===2) return "grid-cols-2 grid-rows-1";   // 좌우 2분할
+  if(n===3) return "grid-cols-3 grid-rows-1";   // 좌우 3분할
+  return "grid-cols-2 grid-rows-2";             // 4명은 2x2
+}
+function cellSpan(n,i){ return ""; }
+
+/* ═══ 16구간 프로그레스 (영/한 병기 + 혼합 아이콘) ═══ */
+function stepperHTML(st, opt={}){
+  const {compact=false, showTime=true, now} = opt;
+  const m=computeMetrics(st,now);
+  const ic = compact?10:13;
+  const cells=SEQ.map((s,i)=>{
+    const done=i<m.done, active=i===m.done && st.started && !m.finished;
+    const bar=done?"bg-hyrox":active?"bg-hyrox step-active":"bg-neutral-800";
+    const sp=st.splits[i], over=sp&&sp.sec>sp.target;
+    const timeTxt=done?mmss(sp.sec):(active?"●":"");
+    const timeCls=done?(over?"text-red-400":"text-green-400"):(active?"text-hyrox":"text-transparent");
+    const lc=active?"text-hyrox":done?"text-neutral-400":"text-neutral-700";
+    return `
+      <div class="flex flex-col items-center flex-1 min-w-0">
+        <div class="w-full rounded-full ${bar}" style="height:${compact?3:5}px"></div>
+        <div class="flex items-center justify-center mt-0.5 ${lc}" style="height:${ic}px">
+          ${stationIcon(s.icon, ic)}
+        </div>
+        <p class="${lc} font-bold truncate w-full text-center leading-none"
+           style="font-size:${compact?7:8}px">${s.short}</p>
+        <p class="${lc} truncate w-full text-center leading-none opacity-70"
+           style="font-size:${compact?6:7}px">${s.ko}</p>
+        ${showTime?`<p class="${timeCls} tabular leading-none mt-0.5" style="font-size:${compact?7:8}px">${timeTxt}</p>`:""}
+      </div>`;
+  }).join("");
+  return `<div class="flex items-start gap-[2px] w-full">${cells}</div>`;
+}
+
+/* ═══ 존 게이지 (5칸 세그먼트 + 현재 존 내 위치) ═══ */
+function zoneGaugeHTML(st, size){
+  const z=zoneOf(st.bpm, st.zones);
+  const prog=zoneProgress(st.bpm, z);
+  const segH = size==="full" ? "1.1vh" : "0.7vh";
+  const segs=st.zones.map(x=>{
+    const isCur = z && x.z===z.z;
+    const passed = z && x.z < z.z;
+    const bg = isCur ? x.color : passed ? x.color : "#262626";
+    const op = isCur ? "1" : passed ? "0.42" : "1";
+    return `<div class="flex-1 rounded-sm relative overflow-hidden" style="height:${segH};background:${bg};opacity:${op}">
+      ${isCur?`<div class="absolute inset-y-0 left-0 bg-white/35" style="width:${prog}%"></div>`:""}
+    </div>`;
+  }).join("");
+  return `<div class="flex gap-[2px] w-full">${segs}</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TV 선수 카드
+   레이아웃: [좌: BPM 초대형 + Zone] | [우: RMSSD/RESP/GCT 세로]
+             ↓ 스파크라인 ↓ 프로그레스 바
+   ═══════════════════════════════════════════════════════════════ */
+function tvCard(st, size, now, idx){
+  const m=computeMetrics(st,now);
+  const full = size==="full";
+
+  if(!st.started){
+    return `<div class="rounded-2xl border border-neutral-800 bg-neutral-950 h-full flex flex-col items-center justify-center idle-pulse">
+      <p class="font-black text-neutral-800" style="font-size:${full?"7vh":"4vh"}">${st.id}</p>
+      <p class="text-neutral-700 font-bold tracking-[0.3em]" style="font-size:${full?"2.4vh":"1.6vh"}">STANDBY</p>
+      <p class="text-neutral-800 mt-1" style="font-size:${full?"1.5vh":"1.05vh"}">${st.name} ${st.en} · Target ${mmss(st.targetSec)}</p>
+    </div>`;
+  }
+
+  const z=zoneOf(st.bpm, st.zones);
+  const zColor=z?z.color:"#E05D29";
+
+  /* 폰트 스케일 — BPM이 압도적으로 크고, 우측 지표는 작게 */
+  const F = full
+    ? {name:"3.6vh", bpm:"19vh", bpmUnit:"3.0vh", zone:"2.6vh", zoneSub:"1.3vh",
+       sideVal:"2.5vh", sideLbl:"1.0vh", station:"2.9vh", metric:"2.1vh", label:"1.05vh",
+       lane:"3.4vh", ic:26, spark:56}
+    : {name:"2.2vh", bpm:"10.5vh", bpmUnit:"1.8vh", zone:"1.6vh", zoneSub:"0.95vh",
+       sideVal:"1.6vh", sideLbl:"0.8vh", station:"1.9vh", metric:"1.4vh", label:"0.8vh",
+       lane:"2.4vh", ic:17, spark:34};
+
+  const sideItem=(label,val,unit,cls="text-neutral-100")=>`
+    <div class="text-right leading-none">
+      <p class="uppercase text-neutral-600 font-bold" style="font-size:${F.sideLbl};letter-spacing:.1em">${label}</p>
+      <p class="font-black tabular ${cls}" style="font-size:${F.sideVal};margin-top:0.2vh">
+        ${val}<span class="text-neutral-600 font-bold" style="font-size:${F.sideLbl}"> ${unit}</span>
+      </p>
+    </div>`;
+
+  return `
+  <div class="relative rounded-2xl border-2 border-hyrox bg-gradient-to-br from-neutral-900 to-[#0A0A0A] p-[1.1vh] flex flex-col h-full min-h-0 overflow-hidden">
+    <div class="absolute left-0 top-0 bottom-0 w-[0.35vh]" style="background:${zColor}"></div>
+
+    <!-- 헤더 -->
+    <div class="flex items-start justify-between shrink-0 pl-[0.7vh] gap-2">
+      <div class="min-w-0">
+        <h2 class="font-black text-white truncate leading-none" style="font-size:${F.name}">
+          ${st.name} <span class="font-light text-neutral-400" style="font-size:${F.zoneSub}">${st.en}</span>
+        </h2>
+        <p class="text-neutral-500 font-medium truncate" style="font-size:${F.label}">
+          ${st.div} · ${st.age} · Target ${mmss(st.targetSec)} · MaxHR ${st.maxHr}
+        </p>
+      </div>
+      <div class="text-right shrink-0">
+        <p class="font-black text-neutral-700 leading-none" style="font-size:${F.lane}">${st.id}</p>
+        <p class="text-green-400 font-bold flex items-center justify-end gap-1" style="font-size:${F.label}">
+          <span class="inline-block rounded-full bg-green-500 heartbeat" style="width:0.7vh;height:0.7vh"></span>LIVE
+        </p>
+      </div>
+    </div>
+
+    <!-- ★ PART 1+2: 좌 BPM/Zone(초대형) | 우 고급지표(세로 소형) -->
+    <div class="flex items-stretch gap-[1.2vh] flex-1 min-h-0 pl-[0.7vh] py-[0.4vh]">
+
+      <!-- 좌: BPM + Zone -->
+      <div class="flex-1 min-w-0 flex flex-col justify-center">
+        <p class="uppercase text-neutral-600 font-bold leading-none" style="font-size:${F.label};letter-spacing:.18em">HEART RATE</p>
+        <div class="flex items-baseline gap-1.5 heartbeat" style="margin-top:0.2vh">
+          <span class="font-black tabular leading-[0.8]" style="font-size:${F.bpm};color:${zColor}">${st.bpm||"--"}</span>
+          <span class="font-bold opacity-60" style="font-size:${F.bpmUnit};color:${zColor}">BPM</span>
+        </div>
+
+        <!-- Zone 텍스트 -->
+        <div class="flex items-baseline gap-1.5 mt-[0.4vh]">
+          <span class="font-black leading-none" style="font-size:${F.zone};color:${zColor}">
+            Z${z?z.z:"-"}
+          </span>
+          <span class="font-bold uppercase leading-none" style="font-size:${F.zoneSub};color:${zColor};opacity:.85">
+            ${z?z.name:"—"}
+          </span>
+          <span class="text-neutral-600 leading-none" style="font-size:${F.zoneSub}">
+            ${z?`${z.minBpm}–${z.maxBpm}`:""}
+          </span>
+        </div>
+
+        <!-- Zone 게이지 -->
+        <div class="mt-[0.5vh]">${zoneGaugeHTML(st,size)}</div>
+        <div class="flex justify-between mt-[0.2vh]">
+          ${st.zones.map(x=>`<span class="text-neutral-700 font-bold" style="font-size:${F.sideLbl}">Z${x.z}</span>`).join("")}
+        </div>
+      </div>
+
+      <!-- 우: 고급 지표 세로 정렬 -->
+      <div class="shrink-0 flex flex-col justify-center gap-[0.9vh] pl-[1vh] border-l border-neutral-800">
+        ${sideItem("RMSSD", st.rmssd??"--", "ms", "text-yellow-400")}
+        ${sideItem("RESP", st.respiration??"--", "brpm", "text-sky-300")}
+        ${sideItem("GCT", st.gct??"—", "ms", st.gct!=null?"text-neutral-100":"text-neutral-700")}
+      </div>
+    </div>
+
+    <!-- EFT / Variance / 현재구간 -->
+    <div class="shrink-0 pl-[0.7vh] flex items-end justify-between gap-2 mb-[0.4vh]">
+      <div class="min-w-0">
+        <p class="uppercase text-neutral-600 font-bold leading-none" style="font-size:${F.label};letter-spacing:.15em">CURRENT</p>
+        ${m.finished
+          ? `<p class="font-black text-hyrox" style="font-size:${F.station}">FINISHED</p>`
+          : `<div class="flex items-center gap-1.5 text-hyrox min-w-0" style="margin-top:0.2vh">
+               ${stationIcon(m.curSeq.icon, F.ic)}
+               <p class="font-black truncate leading-none" style="font-size:${F.station}">${m.curSeq.en}</p>
+             </div>
+             <p class="text-neutral-500 leading-none" style="font-size:${F.label};margin-top:0.15vh">
+               ${m.curSeq.ko} · ${m.done+1}/16 · ${mmss(m.segElapsed)} / ${mmss(m.curTarget)}
+             </p>`}
+      </div>
+      <div class="flex gap-[0.6vh] shrink-0">
+        <div class="rounded-lg bg-black/50 border border-neutral-800 px-2 py-[0.35vh] text-center">
+          <p class="uppercase text-neutral-600 font-bold leading-none" style="font-size:${F.sideLbl}">ELAPSED</p>
+          <p class="font-black tabular text-neutral-200 leading-none" style="font-size:${F.metric};margin-top:0.2vh">${mmss(m.elapsed)}</p>
+        </div>
+        <div class="rounded-lg bg-black/50 border border-neutral-800 px-2 py-[0.35vh] text-center">
+          <p class="uppercase text-neutral-600 font-bold leading-none" style="font-size:${F.sideLbl}">EFT</p>
+          <p class="font-black tabular leading-none ${m.eft>st.targetSec?'text-red-400':'text-green-400'}" style="font-size:${F.metric};margin-top:0.2vh">${mmss(m.eft)}</p>
+        </div>
+        <div class="rounded-lg bg-black/50 border border-neutral-800 px-2 py-[0.35vh] text-center">
+          <p class="uppercase text-neutral-600 font-bold leading-none" style="font-size:${F.sideLbl}">VAR</p>
+          <p class="font-black tabular leading-none ${m.variance>0?'text-red-400':'text-green-400'}" style="font-size:${F.metric};margin-top:0.2vh">${signed(m.variance)}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ★ PART 3: 심박 스파크라인 (프로그레스 바 바로 위) -->
+    <div class="shrink-0 pl-[0.7vh] mb-[0.3vh]">
+      <div class="flex items-center justify-between" style="margin-bottom:0.1vh">
+        <span class="uppercase text-neutral-700 font-bold" style="font-size:${F.sideLbl};letter-spacing:.15em">HR TREND · START → NOW</span>
+        <span class="text-neutral-700 tabular" style="font-size:${F.sideLbl}">${st.hrHistory.length?`${st.hrHistory.length} pts`:""}</span>
+      </div>
+      <div id="spark-${idx}" style="height:${F.spark}px"></div>
+    </div>
+
+    <!-- 16구간 프로그레스 -->
+    <div class="shrink-0 pl-[0.7vh]">${stepperHTML(st,{compact:!full,now})}</div>
+  </div>`;
+}
+
+/* ═══ TV 화면 ═══ */
+function buildTvHTML(tvKey, now, prefix){
+  const tv=TVS[tvKey];
+  const list=tv.athletes.map(id=>S[id]);
+  if(list.length===0){
+    return {html:`<div class="w-full h-full flex flex-col items-center justify-center">
+      <p class="text-neutral-700 font-black" style="font-size:3.6vh">NO ATHLETE ASSIGNED</p>
+      <p class="text-neutral-800 mt-1" style="font-size:1.6vh">디스플레이 통제 센터에서 선수를 할당하세요</p>
+    </div>`, mounts:[]};
+  }
+  const mounts=[];
+  if(list.length===1){
+    const id=`${prefix}-0`;
+    mounts.push({containerId:`spark-${id}`, st:list[0]});
+    return {html:`<div class="w-full h-full p-[0.9vh]">${tvCard(list[0],"full",now,id)}</div>`, mounts};
+  }
+  const n=list.length;
+  const cells=list.map((st,i)=>{
+    const id=`${prefix}-${i}`;
+    mounts.push({containerId:`spark-${id}`, st});
+    return `<div class="${cellSpan(n,i)} min-h-0">${tvCard(st,"split",now,id)}</div>`;
+  }).join("");
+  return {html:`<div class="w-full h-full p-[0.9vh] grid ${tvGridClass(n)} gap-[0.9vh]">${cells}</div>`, mounts};
+}
+
+/* 렌더 + 스파크라인 마운트 */
+function renderTvInto(elId, tvKey, now, prefix){
+  const {html, mounts}=buildTvHTML(tvKey, now, prefix);
+  const el=document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML=html;
+  mounts.forEach(({containerId,st})=>{
+    const z=zoneOf(st.bpm, st.zones);
+    const h=st===null?0:0;
+    mountSparkline(containerId, st, document.getElementById(containerId)?.clientHeight||40, z);
+  });
+}
+/* ═══════════════════════════════════════════════════════════════
+   PART 2 · BLE 오토스캔 (코치 친화적 원클릭 페어링)
+   실제로는 ble_scanner.py의 http://localhost:8765/scan 을 호출.
+   프리뷰에서는 목 데이터로 UX를 시연.
+   ═══════════════════════════════════════════════════════════════ */
+let scanState = { open:false, scanning:false, results:[], targetAthlete:null };
+
+const MOCK_SCAN_RESULTS = [
+  {address:"D1:A2:33:44:55:66", name:"HRM-Pro:0451234", rssi:-52, is_hr:true},
+  {address:"E7:B8:99:AA:BB:CC", name:"HRM-Pro:0459876", rssi:-61, is_hr:true},
+  {address:"F2:C3:44:55:66:77", name:"Polar H10 8B2C", rssi:-68, is_hr:true},
+  {address:"A9:D4:55:66:77:88", name:"Garmin HRM-Dual", rssi:-74, is_hr:true},
+  {address:"11:22:33:44:55:66", name:"Unknown Device", rssi:-88, is_hr:false},
+];
+
+// ble_scanner.py --serve 의 주소 (기본 로컬)
+let SCAN_ENDPOINT = (function(){
+  try{ return localStorage.getItem("xon_scan_url") || "http://localhost:8765/scan"; }
+  catch(e){ return "http://localhost:8765/scan"; }
+})();
+
+function openScan(athleteId){
+  scanState = { open:true, scanning:true, results:[], targetAthlete:athleteId, source:"" };
+  renderScanModal();
+  // 실제 스캐너 서비스 호출 (python ble_scanner.py --serve)
+  fetch(SCAN_ENDPOINT, {cache:"no-store"})
+    .then(r=>r.json())
+    .then(list=>{
+      scanState.scanning=false;
+      scanState.results=Array.isArray(list)?list:[];
+      scanState.source="live";
+      renderScanModal();
+    })
+    .catch(err=>{
+      // 스캐너 미실행 시: 목 데이터로 UX만 시연 (실사용 아님을 명시)
+      scanState.scanning=false;
+      scanState.results=MOCK_SCAN_RESULTS;
+      scanState.source="mock";
+      renderScanModal();
+    });
+}
+function closeScan(){ scanState.open=false; renderScanModal(); }
+function pairDevice(addr, name){
+  const id=scanState.targetAthlete;
+  if(id && S[id]){
+    // 스캔한 기기 주소를 그대로 sensor(=파이썬 athlete_id)로 쓰지 않고,
+    // 표시용 이름/주소만 저장. 실제 라우팅 키(sensor)는 config.py와 맞춘 값 유지.
+    S[id].sensorAddr=addr;
+    S[id].sensorName=name;
+    S[id].device=name;
+    const a=ATHLETES.find(x=>x.id===id); if(a){ a.device=name; }
+  }
+  closeScan();
+  renderAll();
+}
+
+function renderScanModal(){
+  const el=document.getElementById("scan-modal");
+  if(!el) return;
+  if(!scanState.open){ el.classList.remove("active"); el.innerHTML=""; return; }
+  el.classList.add("active");
+  const st=S[scanState.targetAthlete];
+  el.innerHTML=`
+    <div class="absolute inset-0 bg-black/70" onclick="closeScan()"></div>
+    <div class="relative bg-neutral-950 border border-neutral-800 rounded-2xl p-5 w-[92%] max-w-md z-10">
+      <div class="flex items-center justify-between mb-1">
+        <h3 class="text-lg font-black">주변 심박계 찾기</h3>
+        <button onclick="closeScan()" class="text-neutral-500 text-sm btn-press">✕</button>
+      </div>
+      <p class="text-[11px] text-neutral-500 mb-4">${st?st.name+" ("+st.en+") 에 연결":""} · 심박계를 착용하세요</p>
+      ${scanState.scanning ? `
+        <div class="py-10 text-center">
+          <div class="inline-block w-10 h-10 border-3 border-hyrox border-t-transparent rounded-full animate-spin mb-3" style="border-width:3px"></div>
+          <p class="text-sm text-neutral-400">주변 BLE 기기 검색 중...</p>
+          <p class="text-[11px] text-neutral-600 mt-1">ble_scanner.py 서비스 호출</p>
+        </div>
+      ` : `
+        <div class="space-y-2 max-h-[50vh] overflow-y-auto">
+          ${scanState.results.map(d=>`
+            <button onclick="pairDevice('${d.address}','${d.name}')"
+              class="btn-press w-full flex items-center justify-between px-3 py-3 rounded-xl border ${d.is_hr?'border-neutral-700 bg-neutral-900 hover:border-hyrox':'border-neutral-800 bg-neutral-950 opacity-60'}">
+              <div class="text-left min-w-0">
+                <p class="text-sm font-bold ${d.is_hr?'text-neutral-100':'text-neutral-500'} truncate flex items-center gap-1.5">
+                  ${d.is_hr?'<span class="text-hyrox">♥</span>':''}${d.name}
+                </p>
+                <p class="text-[10px] text-neutral-600 font-mono">${d.address}</p>
+              </div>
+              <div class="text-right shrink-0 ml-2">
+                <div class="flex items-center gap-0.5 justify-end">
+                  ${[1,2,3,4].map(bar=>{
+                    const strength = d.rssi>-55?4:d.rssi>-65?3:d.rssi>-75?2:1;
+                    return `<span class="inline-block w-1 rounded-sm ${bar<=strength?'bg-green-500':'bg-neutral-700'}" style="height:${bar*3+2}px"></span>`;
+                  }).join("")}
+                </div>
+                <p class="text-[9px] text-neutral-600 mt-0.5">${d.rssi} dBm</p>
+              </div>
+            </button>
+          `).join("")}
+        </div>
+        <button onclick="openScan(${scanState.targetAthlete})" class="btn-press w-full mt-3 py-2.5 rounded-xl border border-neutral-700 text-neutral-400 text-sm font-bold">🔄 다시 스캔</button>
+      `}
+    </div>`;
+}
+
+/* 디바이스 상태 매트릭스 (Connected/Latency/Tx·Rx) */
+function deviceMatrixHTML(st){
+  const conn = st.started && st.connected;
+  const latColor = st.latencyMs<80?"text-green-400":st.latencyMs<150?"text-yellow-400":"text-red-400";
+  return `
+    <div class="grid grid-cols-4 gap-1.5">
+      <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+        <p class="text-[9px] uppercase tracking-wider text-neutral-600">Status</p>
+        <p class="text-xs font-black flex items-center justify-center gap-1 mt-0.5 ${conn?'text-green-400':'text-neutral-600'}">
+          <span class="w-1.5 h-1.5 rounded-full ${conn?'bg-green-500 dot-live':'bg-neutral-700'}"></span>${conn?'ON':'OFF'}
+        </p>
+      </div>
+      <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+        <p class="text-[9px] uppercase tracking-wider text-neutral-600">Latency</p>
+        <p class="text-xs font-black tabular mt-0.5 ${conn?latColor:'text-neutral-700'}">${conn?st.latencyMs+'ms':'--'}</p>
+      </div>
+      <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+        <p class="text-[9px] uppercase tracking-wider text-neutral-600">Tx</p>
+        <p class="text-xs font-black tabular mt-0.5 ${conn&&st.txCount%2?'text-hyrox':'text-neutral-500'}">▲ ${conn?st.txCount:'--'}</p>
+      </div>
+      <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+        <p class="text-[9px] uppercase tracking-wider text-neutral-600">Rx</p>
+        <p class="text-xs font-black tabular mt-0.5 ${conn&&st.rxCount%2?'text-green-400':'text-neutral-500'}">▼ ${conn?st.rxCount:'--'}</p>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   측정관 통제 (탭 + 초대형 버튼 + 500ms 디바운스)
+   ═══════════════════════════════════════════════════════════════ */
+let refSelected=1, lastPress=-Infinity;
+const DEBOUNCE_MS=500;
+
+function handleNext(){
+  const now=Date.now();
+  if(now-lastPress<DEBOUNCE_MS){ console.log(`[debounce] blocked (${now-lastPress}ms)`); return; }
+  lastPress=now;
+  const st=S[refSelected]; if(!st.started) return;
+  const m=computeMetrics(st); if(m.finished) return;
+  st.splits.push({k:SEQ[m.done].k, sec:m.segElapsed, target:m.curTarget});
+  st.current=st.splits.length;
+  // 마지막 구간까지 기록되면 완주 → DB 저장
+  if(st.splits.length>=SEQ.length){ persistFinish(st); }
+  renderAll();
+}
+
+/* 경기 종료 시 결과+스플릿+분석을 Supabase에 저장 */
+async function persistFinish(st){
+  if(st._saved) return;             // 중복 저장 방지
+  st._saved = true;
+  // 스플릿에 라벨 부여
+  const splits = st.splits.map((s,i)=>({...s, label:(SEQ[i]?SEQ[i].en:s.k)}));
+  // 룰 엔진 분석 (심박 회복은 이력에서 근사)
+  let analysis=null;
+  try{
+    const hrByStep = buildHrByStep(st);
+    analysis = runRuleAnalysis(splits, hrByStep, st.guidance);
+    analysis.gemini = mockGeminiResponse(analysis);   // 실제 배포 시 Gemini API로 교체
+  }catch(e){}
+  const rid = await DB.saveResult(st, splits, analysis);
+  const el=document.getElementById("save-toast");
+  if(el){
+    el.textContent = rid ? `✅ ${st.name} 기록 저장됨 (result #${rid})`
+                         : `⚠ ${st.name} 기록 — DB 미연결(로컬만)`;
+    el.classList.remove("hidden");
+    setTimeout(()=>el.classList.add("hidden"), 4000);
+  }
+}
+
+/* 심박 이력에서 스테이션 종료/러닝 중간 심박 근사 (룰엔진 입력용) */
+function buildHrByStep(st){
+  const out={};
+  if(!st.hrHistory || !st.hrHistory.length) return out;
+  // 각 구간의 경과 구간(누적초)을 계산해 해당 시점 심박을 추출
+  let cum=0;
+  st.splits.forEach((sp,i)=>{
+    const startT=cum, endT=cum+sp.sec; cum=endT;
+    const at=(t)=>{ let best=null; for(const h of st.hrHistory){ if(h.t<=t) best=h.bpm; else break; } return best; };
+    const key=sp.k;
+    if(key.startsWith("run_")) out[key]={mid:at((startT+endT)/2)};
+    else out[key]={end:at(endT-1)};
+  });
+  return out;
+}
+function handleUndo(){
+  const st=S[refSelected]; if(!st.splits.length) return;
+  st.splits.pop(); st.current=st.splits.length; renderAll();
+}
+function selectRef(id){ refSelected=id; renderAll(); }
+function doStart(id){ startAthlete(id); S[id]._saved=false; DB.upsertAthlete(S[id]); renderAll(); }
+function doStop(id){
+  if(!confirm(`${S[id].name} 선수의 타이머를 정지하고 기록을 초기화할까요?`)) return;
+  stopAthlete(id); S[id].splits=[]; S[id].current=0; S[id].hrHistory=[]; renderAll();
+}
+function onAssign(id,tv){ assignAthlete(id, tv==="none"?null:tv); renderAll(); }
+
+/* ★ PART 4 · 나이 / 최대심박 변경 → 존 재정의 */
+function onAgeChange(id, val){
+  const n=parseInt(val,10);
+  updateAthleteHr(id, {ageNum: isNaN(n)?null:n});
+  renderAll();
+}
+function onMaxHrChange(id, val){
+  const n=parseInt(val,10);
+  updateAthleteHr(id, {maxHrManual: isNaN(n)||n<=0 ? null : n});
+  renderAll();
+}
+function onMaxHrReset(id){
+  updateAthleteHr(id, {maxHrManual:null});
+  renderAll();
+}
+
+let previewTv="tv1";
+function setPreviewTv(k){ previewTv=k; renderAll(); }
+
+/* ═══════════════════════════════════════════════════════════════
+   MQTT 브로커 설정 패널 (로컬 ws / 클라우드 wss 전환)
+   ═══════════════════════════════════════════════════════════════ */
+let brokerPanel={open:false};
+function openBroker(){ brokerPanel.open=true; renderBroker(); }
+function closeBroker(){ brokerPanel.open=false; renderBroker(); }
+function applyBroker(){
+  const g=id=>document.getElementById(id);
+  const c={
+    host:g("bk-host").value.trim(),
+    port:parseInt(g("bk-port").value,10)||9001,
+    path:g("bk-path").value.trim()||"/mqtt",
+    useTls:g("bk-tls").value==="wss",
+    username:g("bk-user").value.trim(),
+    password:g("bk-pass").value,
+  };
+  LiveMqtt.connect(c);
+  try{ localStorage.setItem("xon_scan_url", g("bk-scan").value.trim()||"http://localhost:8765/scan"); }catch(e){}
+  SCAN_ENDPOINT = g("bk-scan").value.trim()||"http://localhost:8765/scan";
+  // Supabase 재설정
+  const suburl=g("bk-suburl").value.trim(), subkey=g("bk-subkey").value.trim();
+  if(suburl && subkey){ DB.init({url:suburl, key:subkey}); }
+  closeBroker();
+}
+function renderBroker(){
+  const el=document.getElementById("broker-panel");
+  if(!el) return;
+  if(!brokerPanel.open){ el.classList.remove("active"); el.innerHTML=""; return; }
+  el.classList.add("active");
+  const c=LiveMqtt.loadConfig();
+  let scanUrl="http://localhost:8765/scan";
+  try{ scanUrl=localStorage.getItem("xon_scan_url")||scanUrl; }catch(e){}
+  el.innerHTML=`
+    <div class="absolute inset-0 bg-black/70" onclick="closeBroker()"></div>
+    <div class="relative bg-neutral-950 border border-neutral-800 rounded-2xl p-5 w-[94%] max-w-lg z-10 max-h-[88vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-1">
+        <h3 class="text-lg font-black">MQTT 브로커 연결</h3>
+        <button onclick="closeBroker()" class="text-neutral-500 text-sm btn-press">✕</button>
+      </div>
+      <p class="text-[11px] text-neutral-500 mb-4">로컬(ws://localhost:9001) 또는 클라우드(wss) 브로커로 전환합니다.</p>
+      <div class="space-y-3">
+        <div class="grid grid-cols-4 gap-2">
+          <div class="col-span-1">
+            <label class="text-[11px] text-neutral-500">프로토콜</label>
+            <select id="bk-tls" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
+              <option value="ws" ${!c.useTls?"selected":""}>ws</option>
+              <option value="wss" ${c.useTls?"selected":""}>wss</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="text-[11px] text-neutral-500">호스트</label>
+            <input id="bk-host" value="${c.host}" class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 font-mono focus:border-hyrox outline-none" />
+          </div>
+          <div class="col-span-1">
+            <label class="text-[11px] text-neutral-500">포트</label>
+            <input id="bk-port" type="number" value="${c.port}" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 tabular focus:border-hyrox outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] text-neutral-500">경로(path)</label>
+          <input id="bk-path" value="${c.path}" class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 font-mono focus:border-hyrox outline-none" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-neutral-500">사용자(선택)</label>
+            <input id="bk-user" value="${c.username||""}" class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none" />
+          </div>
+          <div>
+            <label class="text-[11px] text-neutral-500">비밀번호(선택)</label>
+            <input id="bk-pass" type="password" value="${c.password||""}" class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] text-neutral-500">BLE 스캐너 주소 (ble_scanner.py --serve)</label>
+          <input id="bk-scan" value="${scanUrl}" class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 font-mono focus:border-hyrox outline-none" />
+        </div>
+        <div class="border-t border-neutral-800 pt-3 mt-1">
+          <p class="text-[11px] uppercase tracking-widest text-neutral-500 mb-2">Supabase (기록 저장 · 선택)</p>
+          <label class="text-[11px] text-neutral-500">Project URL</label>
+          <input id="bk-suburl" value="${(DB.loadConfig().url||"")}" placeholder="https://xxxx.supabase.co"
+            class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 mb-2 font-mono focus:border-hyrox outline-none" />
+          <label class="text-[11px] text-neutral-500">anon key</label>
+          <input id="bk-subkey" value="${(DB.loadConfig().key||"")}" type="password" placeholder="eyJ..."
+            class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 font-mono focus:border-hyrox outline-none" />
+          <p class="text-[10px] text-neutral-600 mt-1">비워두면 실시간 표시는 정상 동작하고 기록 저장만 건너뜁니다.</p>
+        </div>
+        <div class="rounded-lg bg-neutral-900 border border-neutral-800 p-3">
+          <p class="text-[11px] text-neutral-500">현재 연결 대상</p>
+          <p class="text-sm font-mono text-hyrox">${LiveMqtt.buildUrl(c)}</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="closeBroker()" class="btn-press flex-1 py-3 rounded-xl border border-neutral-700 text-neutral-400 font-bold">취소</button>
+        <button onclick="applyBroker()" class="btn-press flex-1 py-3 rounded-xl bg-hyrox text-white font-black">연결</button>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   선수 등록/수정 폼 (이름·영문·성별·디비전·에이지그룹·목표·센서ID)
+   ═══════════════════════════════════════════════════════════════ */
+let athleteForm = { open:false, editId:null };
+
+const DIVISIONS=["MEN PRO","WOMEN PRO","MEN OPEN","WOMEN OPEN","DOUBLES","RELAY"];
+const AGE_GROUPS=["16-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60+"];
+
+function openAthleteForm(editId){
+  athleteForm={open:true, editId:editId??null};
+  renderAthleteForm();
+}
+function closeAthleteForm(){ athleteForm.open=false; renderAthleteForm(); }
+
+function submitAthleteForm(){
+  const g=id=>document.getElementById(id);
+  const info={
+    name:g("af-name").value.trim(),
+    en:g("af-en").value.trim(),
+    sex:g("af-sex").value,
+    div:g("af-div").value,
+    age:g("af-age").value,
+    ageNum:parseInt(g("af-agenum").value,10)||30,
+    targetSec:(parseInt(g("af-tmin").value,10)||60)*60,
+    sensor:g("af-sensor").value.trim(),
+    maxHrManual:g("af-maxhr").value.trim()===""?null:parseInt(g("af-maxhr").value,10),
+  };
+  if(!info.name){ alert("이름을 입력하세요"); return; }
+  let targetId;
+  if(athleteForm.editId){ updateAthlete(athleteForm.editId, info); targetId=athleteForm.editId; }
+  else { targetId=addAthlete(info); }
+  // DB에 선수 저장 (연결돼 있으면)
+  if(S[targetId]) DB.upsertAthlete(S[targetId]);
+  closeAthleteForm();
+  renderAll();
+}
+
+function renderAthleteForm(){
+  const el=document.getElementById("athlete-form");
+  if(!el) return;
+  if(!athleteForm.open){ el.classList.remove("active"); el.innerHTML=""; return; }
+  el.classList.add("active");
+  const editing=athleteForm.editId!=null;
+  const st=editing?S[athleteForm.editId]:null;
+  const v=(x,d="")=>st?(st[x]??d):d;
+  const tmin=st?Math.round(st.targetSec/60):60;
+  el.innerHTML=`
+    <div class="absolute inset-0 bg-black/70" onclick="closeAthleteForm()"></div>
+    <div class="relative bg-neutral-950 border border-neutral-800 rounded-2xl p-5 w-[94%] max-w-lg z-10 max-h-[88vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-black">${editing?"선수 정보 수정":"새 선수 등록"}</h3>
+        <button onclick="closeAthleteForm()" class="text-neutral-500 text-sm btn-press">✕</button>
+      </div>
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-neutral-500">이름 *</label>
+            <input id="af-name" value="${v("name")}" placeholder="정원준"
+              class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none" />
+          </div>
+          <div>
+            <label class="text-[11px] text-neutral-500">영문명</label>
+            <input id="af-en" value="${v("en")}" placeholder="Wonjoon Jung"
+              class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none" />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-[11px] text-neutral-500">성별</label>
+            <select id="af-sex" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
+              <option value="M" ${v("sex","M")==="M"?"selected":""}>남 (M)</option>
+              <option value="F" ${v("sex")==="F"?"selected":""}>여 (F)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-neutral-500">디비전</label>
+            <select id="af-div" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
+              ${DIVISIONS.map(d=>`<option ${v("div","MEN PRO")===d?"selected":""}>${d}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-neutral-500">에이지 그룹</label>
+            <select id="af-age" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
+              ${AGE_GROUPS.map(g=>`<option ${v("age","30-34")===g?"selected":""}>${g}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-[11px] text-neutral-500">나이(존 계산)</label>
+            <input id="af-agenum" type="number" value="${v("ageNum",32)}" min="10" max="90"
+              class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 tabular focus:border-hyrox outline-none" />
+          </div>
+          <div>
+            <label class="text-[11px] text-neutral-500">Max HR(선택)</label>
+            <input id="af-maxhr" type="number" value="${st&&st.maxHrManual!=null?st.maxHrManual:''}" placeholder="220−나이" min="120" max="220"
+              class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 tabular focus:border-hyrox outline-none" />
+          </div>
+          <div>
+            <label class="text-[11px] text-neutral-500">목표(분)</label>
+            <input id="af-tmin" type="number" value="${tmin}" min="30" max="120"
+              class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 tabular focus:border-hyrox outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] text-neutral-500">센서 ID (★ 파이썬 config.py의 athlete_id 와 정확히 일치)</label>
+          <input id="af-sensor" value="${v("sensor")}" placeholder="athlete_1"
+            class="w-full bg-black border border-hyrox/50 rounded-lg px-3 py-2.5 text-sm mt-0.5 font-mono focus:border-hyrox outline-none" />
+          <p class="text-[10px] text-neutral-600 mt-1">이 값이 일치해야 해당 선수 칸으로 실시간 심박이 들어옵니다.</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="closeAthleteForm()" class="btn-press flex-1 py-3 rounded-xl border border-neutral-700 text-neutral-400 font-bold">취소</button>
+        <button onclick="submitAthleteForm()" class="btn-press flex-1 py-3 rounded-xl bg-hyrox text-white font-black">${editing?"저장":"등록"}</button>
+      </div>
+    </div>`;
+}
+
+function confirmRemoveAthlete(id){
+  if(confirm(`${S[id].name} 선수를 삭제할까요?`)){ removeAthlete(id); renderAll(); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEW A · ADMIN
+   ═══════════════════════════════════════════════════════════════ */
+function renderAdmin(){
+  const now=Date.now();
+
+  document.getElementById("tv-control").innerHTML = Object.entries(TVS).map(([k,tv])=>{
+    const n=tv.athletes.length;
+    const layout=n===0?"미할당":n===1?"1×1 단독":n===2?"1×2 분할":n===3?"상2·하1":"2×2 분할";
+    return `<button onclick="setPreviewTv('${k}')"
+      class="btn-press rounded-xl border p-3 text-left ${previewTv===k?'border-hyrox bg-hyrox/10':'border-neutral-800 bg-neutral-950'}">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-black ${previewTv===k?'text-hyrox':'text-neutral-300'}">${tv.label}</p>
+        <span class="text-[10px] px-1.5 py-0.5 rounded ${n?'bg-hyrox/20 text-hyrox':'bg-neutral-800 text-neutral-600'}">${layout}</span>
+      </div>
+      <p class="text-[11px] ${n?'text-neutral-400':'text-neutral-700'} truncate mt-0.5">
+        ${n?tv.athletes.map(i=>S[i].name).join(", "):"선수를 할당하세요"}
+      </p>
+    </button>`;
+  }).join("");
+
+  document.getElementById("admin-rows").innerHTML = ATHLETES.map(a=>{
+    const st=S[a.id], m=computeMetrics(st,now);
+    const cur=tvOfAthlete(a.id)??"none";
+    const z=zoneOf(st.bpm, st.zones);
+    const isManual = st.maxHrManual!=null;
+
+    // 존 테이블
+    const zoneRows=st.zones.map(x=>{
+      const isCur=z&&x.z===z.z;
+      return `<div class="flex items-center gap-2 py-[3px] ${isCur?'bg-white/5 rounded':''}">
+        <span class="w-1.5 h-4 rounded-sm shrink-0" style="background:${x.color}"></span>
+        <span class="text-[11px] font-black w-5" style="color:${x.color}">Z${x.z}</span>
+        <span class="text-[11px] text-neutral-400 flex-1 truncate">${x.name} <span class="text-neutral-600">${x.ko}</span></span>
+        <span class="text-[11px] tabular text-neutral-300 shrink-0">${x.minBpm}–${x.maxBpm}</span>
+        ${isCur?`<span class="text-[9px] font-black px-1 rounded shrink-0" style="background:${x.color}22;color:${x.color}">NOW</span>`:'<span class="w-8 shrink-0"></span>'}
+      </div>`;
+    }).join("");
+
+    const sensorOk = st.sensor && st.sensor.trim()!=="";
+    return `
+    <section class="rounded-2xl border ${st.started?'border-hyrox':'border-neutral-800'} bg-neutral-950 p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-black">${a.name}</span>
+            <span class="text-xs text-neutral-500 truncate">${a.en||""}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400">${a.sex==="F"?"여":"남"}</span>
+          </div>
+          <p class="text-[11px] text-neutral-500">${a.div} · ${a.age} · Target ${mmss(a.targetSec)}</p>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <button onclick="openAthleteForm(${a.id})" title="수정"
+            class="btn-press text-[11px] text-neutral-400 px-2 py-1 rounded-lg border border-neutral-700 hover:border-neutral-500">✎</button>
+          <button onclick="confirmRemoveAthlete(${a.id})" title="삭제"
+            class="btn-press text-[11px] text-red-400 px-2 py-1 rounded-lg border border-red-900 hover:bg-red-950/40">🗑</button>
+        </div>
+      </div>
+
+      <!-- ★ Part 2: 센서 매칭 + BLE 스캔 + 디바이스 상태 매트릭스 -->
+      <div class="mb-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="min-w-0">
+            <p class="text-[10px] uppercase tracking-[0.15em] text-neutral-500">Sensor ID (config.py 일치 필요)</p>
+            <p class="text-xs font-mono ${sensorOk?'text-green-400':'text-red-400'} truncate">
+              ${sensorOk?st.sensor:"⚠ 미지정"} ${st.sensorName?`· ${st.sensorName}`:""}
+            </p>
+          </div>
+          <button onclick="openScan(${a.id})" class="btn-press text-[11px] text-hyrox font-bold px-2 py-1 rounded-lg border border-hyrox/40 shrink-0">
+            🔍 심박계 찾기
+          </button>
+        </div>
+        ${deviceMatrixHTML(st)}
+      </div>
+
+      <!-- 라이브 요약 -->
+      <div class="grid grid-cols-4 gap-1.5 mb-3">
+        <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+          <p class="text-[9px] uppercase tracking-wider text-neutral-600">BPM</p>
+          <p class="text-base font-black tabular" style="color:${z?z.color:'#a3a3a3'}">${st.bpm||'--'}</p>
+        </div>
+        <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+          <p class="text-[9px] uppercase tracking-wider text-neutral-600">RMSSD</p>
+          <p class="text-base font-black tabular text-yellow-400">${st.rmssd??'--'}</p>
+        </div>
+        <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+          <p class="text-[9px] uppercase tracking-wider text-neutral-600">RESP</p>
+          <p class="text-base font-black tabular text-sky-300">${st.respiration??'--'}</p>
+        </div>
+        <div class="rounded-lg bg-neutral-900 border border-neutral-800 px-2 py-1.5 text-center">
+          <p class="text-[9px] uppercase tracking-wider text-neutral-600">GCT</p>
+          <p class="text-base font-black tabular ${st.gct!=null?'text-neutral-200':'text-neutral-700'}">${st.gct??'—'}</p>
+        </div>
+      </div>
+
+      <!-- ★ PART 4: Z1~Z5 개인화 -->
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900 p-3 mb-3">
+        <p class="text-[10px] uppercase tracking-[0.15em] text-neutral-500 mb-2">Heart Rate Zones · 개인화</p>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div>
+            <label class="text-[10px] text-neutral-500">나이 (Age)</label>
+            <input type="number" value="${st.ageNum??''}" min="10" max="90"
+              onchange="onAgeChange(${a.id}, this.value)"
+              class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-1.5 text-sm mt-0.5 tabular focus:border-hyrox outline-none" />
+          </div>
+          <div>
+            <label class="text-[10px] text-neutral-500">Max HR ${isManual?'<span class="text-hyrox">(직접)</span>':'<span class="text-neutral-600">(220−나이)</span>'}</label>
+            <div class="flex gap-1 mt-0.5">
+              <input type="number" value="${st.maxHr}" min="120" max="220"
+                onchange="onMaxHrChange(${a.id}, this.value)"
+                class="flex-1 min-w-0 bg-black border rounded-lg px-2 py-1.5 text-sm tabular focus:border-hyrox outline-none ${isManual?'border-hyrox text-hyrox':'border-neutral-700'}" />
+              ${isManual?`<button onclick="onMaxHrReset(${a.id})" title="자동(220−나이)으로 되돌리기"
+                class="btn-press px-2 rounded-lg border border-neutral-700 text-neutral-500 text-xs shrink-0">↺</button>`:''}
+            </div>
+          </div>
+        </div>
+        <div class="border-t border-neutral-800 pt-1.5">${zoneRows}</div>
+        <p class="text-[10px] text-neutral-600 mt-1.5">
+          나이나 Max HR을 바꾸면 Z1~Z5 구간과 화면 색상이 즉시 재정의됩니다.
+        </p>
+      </div>
+
+      <!-- TV 할당 -->
+      <label class="text-[10px] uppercase tracking-[0.15em] text-neutral-500">Display Assignment</label>
+      <select onchange="onAssign(${a.id}, this.value)"
+        class="w-full bg-black border border-neutral-700 rounded-lg px-3 py-2.5 text-sm mt-1 mb-3 focus:border-hyrox outline-none">
+        <option value="tv1"  ${cur==="tv1"?"selected":""}>TV 1</option>
+        <option value="tv2"  ${cur==="tv2"?"selected":""}>TV 2</option>
+        <option value="tv3"  ${cur==="tv3"?"selected":""}>TV 3</option>
+        <option value="none" ${cur==="none"?"selected":""}>표시 안 함</option>
+      </select>
+
+      <!-- Wave Start -->
+      ${st.started?`
+        <div class="rounded-xl bg-neutral-900 border border-neutral-800 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-[10px] uppercase tracking-[0.15em] text-neutral-500">Running</p>
+              <p class="text-2xl font-black tabular text-hyrox">${mmss(m.elapsed)}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[10px] uppercase tracking-[0.15em] text-neutral-500">EFT / VAR</p>
+              <p class="text-sm font-black tabular ${m.eft>st.targetSec?'text-red-400':'text-green-400'}">${mmss(m.eft)}</p>
+              <p class="text-xs font-bold tabular ${m.variance>0?'text-red-400':'text-green-400'}">${signed(m.variance)}</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-neutral-500">${m.done} / 16 segments</p>
+            <button onclick="doStop(${a.id})" class="btn-press px-3 py-1.5 rounded-lg border border-red-900 text-red-400 text-xs font-bold hover:bg-red-950/40">■ STOP</button>
+          </div>
+        </div>
+      `:`
+        <button onclick="doStart(${a.id})" class="btn-press w-full bg-green-600 hover:bg-green-500 text-white font-black py-3.5 rounded-xl text-base shadow-[0_0_20px_rgba(22,163,74,0.28)]">▶ START</button>
+        <p class="text-[10px] text-neutral-600 text-center mt-1.5">누른 시점부터 독립 타이머가 시작됩니다</p>
+      `}
+    </section>`;
+  }).join("");
+
+  renderTvInto("tv-preview", previewTv, now, "pv");
+  const n=TVS[previewTv].athletes.length;
+  document.getElementById("preview-label").textContent =
+    `${TVS[previewTv].label} · ${n}명 · ${n===0?"미할당":n===1?"1×1":n===2?"1×2":n===3?"상2·하1":"2×2"}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEW B · REFEREE
+   ═══════════════════════════════════════════════════════════════ */
+function renderReferee(){
+  const now=Date.now();
+  document.getElementById("ref-tabs").innerHTML = ATHLETES.map(a=>{
+    const st=S[a.id], sel=refSelected===a.id, m=computeMetrics(st,now);
+    const z=zoneOf(st.bpm, st.zones);
+    return `<button onclick="selectRef(${a.id})"
+      class="btn-press py-2.5 px-1 rounded-xl border ${sel?'bg-hyrox border-hyrox text-white':'bg-neutral-900 border-neutral-800 text-neutral-400'}">
+      <p class="text-sm font-black leading-tight truncate">${a.name}</p>
+      <p class="text-[10px] tabular ${sel?'text-white/80':'text-neutral-600'}">
+        ${st.started?`${m.done}/16 · ${mmss(m.elapsed)}`:"STANDBY"}
+      </p>
+      ${st.started&&z?`<p class="text-[9px] font-black" style="color:${sel?'#fff':z.color}">Z${z.z} · ${st.bpm}</p>`:''}
+    </button>`;
+  }).join("");
+
+  const st=S[refSelected], m=computeMetrics(st,now);
+  const body=document.getElementById("ref-body");
+
+  if(!st.started){
+    body.innerHTML=`<div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-8 text-center">
+      <p class="text-2xl font-black text-neutral-600 mb-1">STANDBY</p>
+      <p class="text-sm text-neutral-500 mb-5">${st.name} (${st.en}) 선수는 아직 출발하지 않았습니다.</p>
+      <button onclick="doStart(${st.id})" class="btn-press w-[85%] bg-green-600 hover:bg-green-500 text-white font-black py-6 rounded-2xl text-2xl shadow-[0_0_30px_rgba(22,163,74,0.35)]">▶ START</button>
+    </div>`;
+    return;
+  }
+
+  const z=zoneOf(st.bpm, st.zones);
+  const zc=z?z.color:"#E05D29";
+
+  body.innerHTML=`
+    <section class="rounded-2xl border-2 border-hyrox bg-gradient-to-br from-neutral-900 to-neutral-950 p-4 md:p-5 mb-3">
+      <!-- BPM + Zone 우선 -->
+      <div class="flex items-center justify-between gap-4 mb-3">
+        <div class="min-w-0">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Heart Rate</p>
+          <div class="flex items-baseline gap-2 heartbeat">
+            <span class="text-6xl md:text-7xl font-black tabular leading-none" style="color:${zc}">${st.bpm||'--'}</span>
+            <span class="text-lg font-bold opacity-60" style="color:${zc}">BPM</span>
+          </div>
+          <div class="flex items-baseline gap-2 mt-1">
+            <span class="text-xl font-black" style="color:${zc}">Z${z?z.z:'-'}</span>
+            <span class="text-sm font-bold uppercase" style="color:${zc};opacity:.85">${z?z.name:'—'}</span>
+            <span class="text-xs text-neutral-600">${z?`${z.minBpm}–${z.maxBpm}`:''}</span>
+          </div>
+        </div>
+        <div class="shrink-0 flex flex-col gap-2 text-right border-l border-neutral-800 pl-4">
+          <div><p class="text-[9px] uppercase tracking-wider text-neutral-600">RMSSD</p>
+            <p class="text-lg font-black tabular text-yellow-400">${st.rmssd??'--'}<span class="text-[10px] text-neutral-600"> ms</span></p></div>
+          <div><p class="text-[9px] uppercase tracking-wider text-neutral-600">RESP</p>
+            <p class="text-lg font-black tabular text-sky-300">${st.respiration??'--'}<span class="text-[10px] text-neutral-600"> brpm</span></p></div>
+          <div><p class="text-[9px] uppercase tracking-wider text-neutral-600">GCT</p>
+            <p class="text-lg font-black tabular ${st.gct!=null?'text-neutral-100':'text-neutral-700'}">${st.gct??'—'}<span class="text-[10px] text-neutral-600"> ms</span></p></div>
+        </div>
+      </div>
+
+      <div class="mb-3">${zoneGaugeHTML(st,"split")}</div>
+
+      <!-- 현재 구간 -->
+      <div class="flex items-start justify-between gap-3 pt-3 border-t border-neutral-800">
+        <div class="min-w-0">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Current Station</p>
+          ${m.finished?`<p class="text-2xl font-black text-hyrox">FINISHED</p>`:`
+            <div class="flex items-center gap-2 text-hyrox min-w-0">
+              ${stationIcon(m.curSeq.icon,26)}
+              <p class="text-2xl md:text-3xl font-black truncate">${m.curSeq.en}</p>
+            </div>
+            <p class="text-sm text-neutral-400">${m.curSeq.ko} · <span class="text-neutral-300 font-bold">${m.done+1}</span>/16</p>`}
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Split</p>
+          <p class="text-3xl md:text-4xl font-black tabular ${m.segElapsed>(m.curTarget??1e9)?'text-red-400':'text-green-400'}">${m.finished?'--:--':mmss(m.segElapsed)}</p>
+          <p class="text-[11px] text-neutral-600 tabular">Target ${m.finished?'--:--':mmss(m.curTarget)}</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-1.5 mt-3">
+        ${[["ELAPSED",mmss(m.elapsed),"text-neutral-200"],
+           ["EFT",mmss(m.eft),m.eft>st.targetSec?"text-red-400":"text-green-400"],
+           ["VARIANCE",signed(m.variance),m.variance>0?"text-red-400":"text-green-400"]]
+          .map(([l,v,c])=>`<div class="rounded-xl bg-black/50 border border-neutral-800 px-2 py-2 text-center">
+            <p class="text-[9px] uppercase tracking-wider text-neutral-600">${l}</p>
+            <p class="text-base font-black tabular ${c}">${v}</p></div>`).join("")}
+      </div>
+
+      <!-- 스파크라인 -->
+      <div class="mt-3">
+        <p class="text-[9px] uppercase tracking-[0.15em] text-neutral-700 mb-0.5">HR Trend · Start → Now</p>
+        <div id="spark-ref" style="height:52px"></div>
+      </div>
+
+      <div class="mt-2">${stepperHTML(st,{compact:true,showTime:false,now})}</div>
+    </section>
+
+    <div class="flex justify-center mb-2">
+      <button onclick="handleNext()" ${m.finished?"disabled":""}
+        class="btn-press w-[92%] md:w-[85%] rounded-3xl py-9 md:py-11 flex flex-col items-center justify-center
+        ${m.finished?'bg-neutral-800 text-neutral-600':'bg-hyrox hover:bg-[#c94e20] text-white shadow-[0_0_40px_rgba(224,93,41,0.35)]'}">
+        <span class="text-4xl md:text-5xl font-black tracking-tight leading-none">${m.finished?"FINISHED":"▶ NEXT"}</span>
+        <span class="text-lg md:text-2xl font-bold tracking-[0.15em] mt-1.5 opacity-90">${m.finished?"COMPLETE":"STATION"}</span>
+      </button>
+    </div>
+    <div class="flex justify-center mb-4">
+      <button onclick="handleUndo()" class="btn-press px-6 py-2.5 rounded-xl border border-neutral-700 text-neutral-400 text-sm font-bold hover:border-neutral-500">↶ UNDO</button>
+    </div>
+
+    <section class="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Split Records</p>
+        <span class="text-[10px] text-neutral-600">${st.splits.length} records</span>
+      </div>
+      <div class="max-h-[30vh] overflow-y-auto space-y-1.5">
+        ${st.splits.length===0?'<p class="text-xs text-neutral-700 text-center py-5">No records yet</p>'
+          :st.splits.map((s,i)=>({s,i})).reverse().map(({s,i})=>{
+            const q=SEQ[i],over=s.sec>s.target,d=s.sec-s.target;
+            return `<div class="flex items-center justify-between px-3 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 ${i===st.splits.length-1?'split-new':''}">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="text-[10px] font-black text-neutral-700 tabular w-5 shrink-0">${String(i+1).padStart(2,"0")}</span>
+                <span class="text-neutral-500 shrink-0">${stationIcon(q.icon,16)}</span>
+                <div class="min-w-0">
+                  <p class="text-sm text-neutral-300 truncate leading-tight">${q.en}</p>
+                  <p class="text-[10px] text-neutral-600 leading-tight">${q.ko}</p>
+                </div>
+              </div>
+              <div class="text-right shrink-0 ml-2">
+                <p class="text-sm font-black tabular ${over?'text-red-400':'text-green-400'}">${mmss(s.sec)}</p>
+                <p class="text-[10px] tabular ${over?'text-red-500/70':'text-green-500/70'}">${d>0?'+':''}${d}s</p>
+              </div>
+            </div>`;
+          }).join("")}
+      </div>
+    </section>`;
+
+  mountSparkline("spark-ref", st, 52, z);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEW C · TV OUTPUT
+   ═══════════════════════════════════════════════════════════════ */
+let fsTv=null;
+function openTv(k){
+  fsTv=k;
+  document.getElementById("fs-label").textContent=TVS[k].label;
+  document.getElementById("fs-overlay").classList.add("active");
+  renderTvInto("fs-content", k, Date.now(), "fs");
+}
+function closeTv(){
+  fsTv=null;
+  document.getElementById("fs-overlay").classList.remove("active");
+}
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeTv(); });
+
+function renderTvView(){
+  const now=Date.now();
+  document.getElementById("tv-grid").innerHTML = Object.entries(TVS).map(([k,tv])=>{
+    const n=tv.athletes.length;
+    return `<div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
+      <div class="flex items-center justify-between mb-2">
+        <div><p class="text-sm font-black text-neutral-200">${tv.label}</p>
+        <p class="text-[11px] text-neutral-600">${n?tv.athletes.map(i=>S[i].name).join(", "):"미할당"}</p></div>
+        <button onclick="openTv('${k}')" class="btn-press text-xs text-hyrox font-bold px-2 py-1 rounded-lg border border-hyrox/40">⛶ 전체화면</button>
+      </div>
+      <div class="w-full rounded-xl overflow-hidden border border-neutral-800 bg-black" style="aspect-ratio:16/9">
+        <div id="tvbox-${k}" class="w-full h-full"></div>
+      </div>
+    </div>`;
+  }).join("");
+  Object.keys(TVS).forEach(k=>renderTvInto(`tvbox-${k}`, k, now, `tv-${k}`));
+}
+
+/* ═══ 뷰 전환 & 루프 ═══ */
+let activeView="admin";
+function showView(v){
+  activeView=v;
+  ["admin","referee","tv","report"].forEach(x=>{
+    const vw=document.getElementById("view-"+x); if(vw) vw.classList.toggle("active",x===v);
+    const nv=document.getElementById("nav-"+x);
+    if(nv) nv.className="py-2.5 rounded-xl font-bold text-sm btn-press "+(x===v?"bg-hyrox text-white":"bg-neutral-800 text-neutral-400");
+  });
+  if(v==="report") renderReportList();
+  renderAll();
+}
+
+/* 저장된 경기 기록 목록 (Supabase) */
+async function renderReportList(){
+  const el=document.getElementById("report-list");
+  if(!el) return;
+  if(!DB.isReady()){
+    el.innerHTML=`<p class="text-neutral-400 text-sm mb-2">Supabase가 연결되지 않았습니다.</p>
+      <p class="text-sm text-neutral-600">상단 <span class="text-hyrox">📡</span> 패널에서 Supabase URL/Key를 입력하면 저장된 기록이 여기 나타납니다.
+      지금은 예시 리포트를 <span class="text-hyrox font-mono">report-preview.html</span> 로 확인할 수 있습니다.</p>`;
+    return;
+  }
+  el.innerHTML=`<p class="text-neutral-500 text-sm">기록을 불러오는 중...</p>`;
+  const list=await DB.listAthletes();
+  if(!list.length){
+    el.innerHTML=`<p class="text-neutral-500 text-sm">아직 저장된 선수가 없습니다. 경기를 완주하면 자동 저장됩니다.</p>`;
+    return;
+  }
+  el.innerHTML=`
+    <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-3">저장된 선수 · 클릭 시 상세 리포트</p>
+    <div class="space-y-2">
+      ${list.map(a=>`
+        <a href="report-preview.html?athlete=${a.id}" target="_blank"
+          class="btn-press flex items-center justify-between px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-hyrox">
+          <div class="min-w-0">
+            <p class="text-sm font-black truncate">${a.name} <span class="font-light text-neutral-500">${a.en_name||""}</span></p>
+            <p class="text-[11px] text-neutral-600">${a.division||""} · ${a.age_group||""} ${a.sensor?"· "+a.sensor:""}</p>
+          </div>
+          <span class="text-hyrox text-sm shrink-0">리포트 →</span>
+        </a>`).join("")}
+    </div>`;
+}
+
+let _flushTick=0;
+function renderAll(){
+  const now=Date.now();
+  tickConnection(now);
+  // 실시간 심박 → live_samples 버퍼링 (출발한 선수만)
+  Object.values(S).forEach(st=>{
+    if(st.started && st.connected){
+      DB.bufferSample(st, computeMetrics(st, now));
+    }
+  });
+  // 5초마다 배치 flush
+  if(++_flushTick % 5 === 0){ DB.flushSamples(S); }
+  if(activeView==="admin") renderAdmin();
+  if(activeView==="referee") renderReferee();
+  if(activeView==="tv") renderTvView();
+  if(fsTv) renderTvInto("fs-content", fsTv, now, "fs");
+  renderScanModal();
+  renderAthleteForm();
+  renderBroker();
+  const d=new Date();
+  document.getElementById("wallclock").textContent=
+    `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+}
+
+/* ═══ 초기화 ═══ */
+// 실시간 MQTT 수신 배선: 메시지가 올 때마다 해당 선수에 반영
+LiveMqtt.onMessage((sensorId, payload) => {
+  applyLiveReading(sensorId, payload);
+});
+LiveMqtt.onStatus((st) => {
+  const el=document.getElementById("mqtt-status");
+  if(!el) return;
+  const map={connected:["🟢 연결됨","text-green-400"],connecting:["🟡 연결 중","text-yellow-400"],
+             disconnected:["⚪ 끊김","text-neutral-500"],error:["🔴 오류","text-red-400"]};
+  const [txt,cls]=map[st.status]||["-",""];
+  el.className="text-xs font-bold "+cls;
+  el.textContent=txt + (st.lastError?` · ${st.lastError}`:"");
+});
+// 저장된 설정으로 자동 연결 시도 (localhost:9001 기본)
+LiveMqtt.connect();
+
+// Supabase 저장 계층 초기화 (키 없으면 저장만 건너뜀)
+DB.init();
+
+showView("admin");
+setInterval(renderAll,1000);
+</script>
+</body>
+</html>

@@ -106,3 +106,16 @@ drop policy if exists "test_all_live"     on live_samples;
 drop policy if exists "test_all_analysis" on analysis_cache;
 create policy "test_all_live"     on live_samples   for all using (true) with check (true);
 create policy "test_all_analysis" on analysis_cache for all using (true) with check (true);
+
+-- ═══════════════════════════════════════════════════════════════
+--  대시보드 연동 보강: sensor 컬럼 (config.py athlete_id 문자열)
+--  이 값으로 프론트엔드 선수 ↔ DB row 를 안정적으로 매칭합니다.
+-- ═══════════════════════════════════════════════════════════════
+alter table target_athletes add column if not exists sensor text;
+alter table target_athletes add column if not exists en_name text;
+alter table target_athletes add column if not exists target_sec integer;
+alter table target_athletes add column if not exists max_hr integer;
+create unique index if not exists idx_athletes_sensor on target_athletes(sensor) where sensor is not null;
+
+alter table live_samples   enable row level security;
+alter table analysis_cache enable row level security;

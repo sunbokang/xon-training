@@ -249,3 +249,48 @@ Gemini 처방을 볼 수 있고, 상단 **[PDF 저장/인쇄]** 로 A4 저장됩
 ---
 
 ⓒ sunbo kang · XON TRAINING
+
+---
+
+## 13. 기록 저장 (Supabase 연동)
+
+실시간 심박은 MQTT로 표시되고, **경기 기록은 Supabase에 저장**됩니다.
+
+**설정**
+1. `server/supabase_schema.sql` 전체를 Supabase SQL 에디터에 붙여넣어 실행
+2. 대시보드 상단 **📡** 버튼 → 아래쪽 Supabase 칸에 Project URL / anon key 입력 → 연결
+
+**동작**
+- 선수 등록/수정 → `target_athletes` 에 자동 저장 (sensor 기준 upsert)
+- 출발 후 심박 → `live_samples` 에 5초마다 배치 저장
+- 마지막 16구간을 넘겨 **완주하면** → `results` + `splits` + `analysis_cache` 저장
+  (화면 하단에 "✅ 기록 저장됨" 토스트가 뜹니다)
+- **REPORT 탭** → 저장된 선수 목록 → 클릭 시 `report-preview.html?athlete=<id>` 로
+  실제 DB 기록 기반 리포트가 열립니다.
+
+키를 입력하지 않아도 실시간 표시는 정상 동작하며, 저장만 조용히 건너뜁니다.
+
+---
+
+## 14. Vercel(HTTPS) 배포 시 — 클라우드 브로커 (WSS)
+
+로컬 `ws://localhost:9001` 은 Vercel(HTTPS)에서 Mixed Content로 차단됩니다.
+ngrok/localtunnel 대신 **무료 클라우드 MQTT 브로커(WSS)** 를 권장합니다.
+
+**예: HiveMQ Cloud (무료)**
+1. hivemq.cloud 가입 → 클러스터 생성 → 계정(username/password) 발급
+2. **파이썬 수집기** (윈도우 cmd):
+   ```
+   set MQTT_BROKER=xxxxx.s1.eu.hivemq.cloud
+   set MQTT_PORT=8883
+   set MQTT_USE_TLS=1
+   set MQTT_USERNAME=your_user
+   set MQTT_PASSWORD=your_pass
+   python main.py
+   ```
+3. **대시보드** 상단 📡 패널:
+   - 프로토콜 `wss`, 호스트 `xxxxx.s1.eu.hivemq.cloud`, 포트 `8884`(WebSocket), 경로 `/mqtt`
+   - username/password 입력 → 연결
+
+이렇게 하면 로컬 PC와 Vercel 대시보드가 클라우드 브로커를 경유해
+어디서든 안정적으로 연결됩니다(터널링 불필요).

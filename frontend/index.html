@@ -42,6 +42,7 @@
 </style>
 </head>
 <body class="text-white touch-safe">
+
 <header class="sticky top-0 z-40 bg-base/95 backdrop-blur border-b border-neutral-800">
   <div class="max-w-7xl mx-auto px-4 py-2.5">
     <div class="flex items-center justify-between gap-3 mb-2.5">
@@ -64,7 +65,9 @@
     </div>
   </div>
 </header>
+
 <main class="max-w-7xl mx-auto px-4 py-4 pb-24">
+
 <div id="view-admin" class="view active">
   <div class="mb-4 flex items-start justify-between gap-3">
     <div>
@@ -92,6 +95,7 @@
   </div>
   <div class="grid grid-cols-1 xl:grid-cols-2 gap-4" id="admin-rows"></div>
 </div>
+
 <div id="view-referee" class="view">
   <div class="mb-3">
     <h1 class="text-2xl font-black">측정관 <span class="text-hyrox">통제 패널</span></h1>
@@ -100,6 +104,7 @@
   <div class="grid grid-cols-4 gap-1.5 mb-4" id="ref-tabs"></div>
   <div id="ref-body"></div>
 </div>
+
 <div id="view-tv" class="view">
   <div class="mb-4">
     <h1 class="text-2xl font-black">TV <span class="text-hyrox">출력 미리보기</span></h1>
@@ -107,6 +112,7 @@
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="tv-grid"></div>
 </div>
+
 <div id="view-report" class="view">
   <div class="mb-4">
     <h1 class="text-2xl font-black">엘리트 <span class="text-hyrox">분석 리포트</span></h1>
@@ -116,7 +122,9 @@
     <p class="text-neutral-500 text-sm">저장된 기록을 불러오는 중...</p>
   </div>
 </div>
+
 </main>
+
 <footer class="fixed bottom-0 left-0 right-0 z-30 border-t border-neutral-800 bg-base/95 backdrop-blur">
   <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
     <p class="text-[11px] text-neutral-600">ⓒ sunbo kang. All rights reserved.</p>
@@ -125,6 +133,7 @@
     </div>
   </div>
 </footer>
+
 <div id="save-toast" class="hidden fixed bottom-16 left-1/2 -translate-x-1/2 z-[70] bg-neutral-900 border border-hyrox/50 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"></div>
 <div id="fs-overlay" class="fs fixed inset-0 z-50 bg-base flex-col">
   <div id="fs-content" class="flex-1 min-h-0"></div>
@@ -142,6 +151,7 @@
 <div id="scan-modal" class="fixed inset-0 z-[60] p-4"></div>
 <div id="athlete-form" class="fixed inset-0 z-[60] p-4"></div>
 <div id="broker-panel" class="fixed inset-0 z-[60] p-4"></div>
+
 <script>
 /* ═══════════════════════════════════════════════════════════════
    HYROX 종목 아이콘 라이브러리
@@ -549,8 +559,7 @@ const STALE_MS = 4000;
 function tickConnection(now){
   now = now ?? Date.now();
   Object.values(S).forEach(st=>{
-    if(!st.lastRxAt) return;   // 한 번도 수신 안 한 선수는 건드리지 않음
-    if((now - st.lastRxAt) > STALE_MS){
+    if(st.lastRxAt && (now - st.lastRxAt) > STALE_MS){
       st.connected = false;
       st.bpm = 0; st.rmssd = null; st.gct = null; st.cadence = null; st.respiration = null;
     }
@@ -1691,8 +1700,6 @@ function renderBroker(){
   const el=document.getElementById("broker-panel");
   if(!el) return;
   if(!brokerPanel.open){ el.classList.remove("active"); el.innerHTML=""; return; }
-  // 이미 열려 있으면 재생성 금지
-  if(el.classList.contains("active") && el.innerHTML.trim()!=="") return;
   el.classList.add("active");
   const c=LiveMqtt.loadConfig();
   let scanUrl="http://localhost:8765/scan";
@@ -1791,10 +1798,6 @@ function submitAthleteForm(){
     maxHrManual:g("af-maxhr").value.trim()===""?null:parseInt(g("af-maxhr").value,10),
   };
   if(!info.name){ alert("이름을 입력하세요"); return; }
-  if(!info.sex){ alert("성별을 선택하세요"); return; }
-  if(!info.div){ alert("디비전을 선택하세요"); return; }
-  if(!info.age){ alert("에이지 그룹을 선택하세요"); return; }
-  if(!info.sensor){ alert("센서 ID를 입력하세요\n(config.py의 athlete_id 값, 예: athlete_1)"); return; }
   let targetId;
   if(athleteForm.editId){ updateAthlete(athleteForm.editId, info); targetId=athleteForm.editId; }
   else { targetId=addAthlete(info); }
@@ -1808,14 +1811,11 @@ function renderAthleteForm(){
   const el=document.getElementById("athlete-form");
   if(!el) return;
   if(!athleteForm.open){ el.classList.remove("active"); el.innerHTML=""; return; }
-  // ★ 이미 열려 있으면 재생성 금지 — 매초 renderAll이 입력값을 초기화하는 것을 방지
-  if(el.classList.contains("active") && el.innerHTML.trim()!=="") return;
   el.classList.add("active");
   const editing=athleteForm.editId!=null;
   const st=editing?S[athleteForm.editId]:null;
-  // 편집 모드: 기존값 표시 / 신규 모드: 모두 빈값(사용자가 직접 입력)
-  const v=(x,d="")=>st?(st[x]??d):"";
-  const tmin=st?Math.round(st.targetSec/60):"";
+  const v=(x,d="")=>st?(st[x]??d):d;
+  const tmin=st?Math.round(st.targetSec/60):60;
   el.innerHTML=`
     <div class="absolute inset-0 bg-black/70" onclick="closeAthleteForm()"></div>
     <div class="relative bg-neutral-950 border border-neutral-800 rounded-2xl p-5 w-[94%] max-w-lg z-10 max-h-[88vh] overflow-y-auto">
@@ -1840,30 +1840,27 @@ function renderAthleteForm(){
           <div>
             <label class="text-[11px] text-neutral-500">성별</label>
             <select id="af-sex" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
-              ${!editing?'<option value="">성별 선택</option>':""}
-              <option value="M" ${v("sex")==="M"?"selected":""}>남 (M)</option>
+              <option value="M" ${v("sex","M")==="M"?"selected":""}>남 (M)</option>
               <option value="F" ${v("sex")==="F"?"selected":""}>여 (F)</option>
             </select>
           </div>
           <div>
             <label class="text-[11px] text-neutral-500">디비전</label>
             <select id="af-div" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
-              ${!editing?'<option value="">디비전 선택</option>':""}
-              ${DIVISIONS.map(d=>`<option ${v("div")===d?"selected":""}>${d}</option>`).join("")}
+              ${DIVISIONS.map(d=>`<option ${v("div","MEN PRO")===d?"selected":""}>${d}</option>`).join("")}
             </select>
           </div>
           <div>
             <label class="text-[11px] text-neutral-500">에이지 그룹</label>
             <select id="af-age" class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 focus:border-hyrox outline-none">
-              ${!editing?'<option value="">에이지 선택</option>':""}
-              ${AGE_GROUPS.map(g=>`<option ${v("age")===g?"selected":""}>${g}</option>`).join("")}
+              ${AGE_GROUPS.map(g=>`<option ${v("age","30-34")===g?"selected":""}>${g}</option>`).join("")}
             </select>
           </div>
         </div>
         <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="text-[11px] text-neutral-500">나이(존 계산)</label>
-            <input id="af-agenum" type="number" value="${v("ageNum")}" placeholder="예: 32" min="10" max="90"
+            <input id="af-agenum" type="number" value="${v("ageNum",32)}" min="10" max="90"
               class="w-full bg-black border border-neutral-700 rounded-lg px-2 py-2.5 text-sm mt-0.5 tabular focus:border-hyrox outline-none" />
           </div>
           <div>
@@ -1905,6 +1902,17 @@ function confirmRemoveAthlete(id){
    ═══════════════════════════════════════════════════════════════ */
 function renderAdmin(){
   const now=Date.now();
+  // 선수가 없으면 empty-state 표시, 있으면 TV 섹션 표시
+  const hasAthletes = ATHLETES.length > 0;
+  const emptyEl=document.getElementById("empty-state");
+  const tvEl=document.getElementById("tv-section");
+  if(emptyEl) emptyEl.classList.toggle("hidden", hasAthletes);
+  if(tvEl) tvEl.style.display = hasAthletes ? "" : "none";
+  if(!hasAthletes){
+    const rows=document.getElementById("admin-rows");
+    if(rows) rows.innerHTML="";
+    return;
+  }
 
   document.getElementById("tv-control").innerHTML = Object.entries(TVS).map(([k,tv])=>{
     const n=tv.athletes.length;
@@ -2279,6 +2287,18 @@ async function renderReportList(){
           <span class="text-hyrox text-sm shrink-0">리포트 →</span>
         </a>`).join("")}
     </div>`;
+}
+
+/* ══ 전체 초기화 (선수/TV 명단 삭제) ══ */
+function clearAllData(){
+  if(!confirm("모든 선수 데이터와 TV 매핑을 초기화할까요?\n(MQTT/Supabase 설정은 유지됩니다)")) return;
+  // 선수 전원 삭제
+  [...ATHLETES].forEach(a=>removeAthlete(a.id));
+  // TV 초기화
+  Object.values(TVS).forEach(t=>{ t.athletes=[]; });
+  saveAthletesToStorage();
+  saveTVSToStorage();
+  renderAll();
 }
 
 let _flushTick=0;

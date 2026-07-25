@@ -38,7 +38,7 @@ class SensorReading:
     def to_mqtt_payload(self, rmssd: Optional[float]) -> dict:
         """MQTT로 발행할 JSON 딕셔너리 생성 (RMSSD는 상위에서 계산해 주입)."""
         return {
-            "timestamp": self.timestamp,
+            "timestamp": self.timestamp * 1000,  # 밀리초로 변환 (대시보드 Latency 계산용)
             "athlete_id": self.athlete_id,
             "BPM": self.bpm,
             "RMSSD": rmssd,

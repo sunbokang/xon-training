@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\sunbo\OneDrive\바탕 화면\proj_X\edge-collector\venv"
+VIRTUAL_ENV="C:\Users\sunbo\OneDrive\바탕 화면\hyrox-v8\edge-collector\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

@@ -55,6 +55,12 @@ class RobustMqttPublisher:
         def _try_connect():
             while True:
                 try:
+                    # 클라우드 브로커: 인증/TLS 적용
+                    if getattr(config, "MQTT_USERNAME", ""):
+                        self.client.username_pw_set(config.MQTT_USERNAME, config.MQTT_PASSWORD)
+                    if getattr(config, "MQTT_USE_TLS", False):
+                        import ssl
+                        self.client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
                     self.client.connect(config.MQTT_BROKER, config.MQTT_PORT, keepalive=60)
                     return
                 except Exception as e:

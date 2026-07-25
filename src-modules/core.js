@@ -95,11 +95,14 @@ function signed(sec){
 /* ═══════════════════════════════════════════════════════════════
    더미 데이터 (실력 순) — age / maxHrManual 포함
    ═══════════════════════════════════════════════════════════════ */
+// 초기 선수 명단. 실제 운영에서는 /admin에서 직접 추가·편집합니다.
+// sensor 값은 파이썬 config.py SENSOR_MAP의 athlete_id 와 정확히 일치해야
+// 해당 선수 칸으로 실시간 데이터가 흘러갑니다.
 const ATHLETES = [
-  {id:1,name:"정원준",en:"Wonjoon Jung",div:"MEN PRO",age:"30-34",ageNum:32,maxHrManual:null,targetSec:3600,sensor:"athlete_1",device:"Garmin HRM-Pro"},
-  {id:2,name:"동주봉",en:"Bong Bong",   div:"MEN PRO",age:"30-34",ageNum:33,maxHrManual:null,targetSec:3600,sensor:"athlete_2",device:"Garmin HRM-Pro"},
-  {id:3,name:"강지웅",en:"Jiwoong Kang",div:"MEN PRO",age:"30-34",ageNum:31,maxHrManual:186, targetSec:4200,sensor:"athlete_3",device:"Garmin HRM-Pro"},
-  {id:4,name:"강선보",en:"Sunbo Kang",  div:"MEN PRO",age:"35-39",ageNum:37,maxHrManual:null,targetSec:4500,sensor:"athlete_4",device:"Garmin HRM-Pro"},
+  {id:1,name:"정원준",en:"Wonjoon Jung",sex:"M",div:"MEN PRO",age:"30-34",ageNum:32,maxHrManual:null,targetSec:3600,sensor:"athlete_1",device:"Garmin HRM-Pro"},
+  {id:2,name:"동주봉",en:"Bong Bong",   sex:"M",div:"MEN PRO",age:"30-34",ageNum:33,maxHrManual:null,targetSec:3600,sensor:"athlete_2",device:"Garmin HRM-Pro"},
+  {id:3,name:"강지웅",en:"Jiwoong Kang",sex:"M",div:"MEN PRO",age:"30-34",ageNum:31,maxHrManual:186, targetSec:4200,sensor:"athlete_3",device:"Garmin HRM-Pro"},
+  {id:4,name:"강선보",en:"Sunbo Kang",  sex:"M",div:"MEN PRO",age:"35-39",ageNum:37,maxHrManual:null,targetSec:4500,sensor:"athlete_4",device:"Garmin HRM-Pro"},
 ];
 
 /* ═══ TV 매핑 ═══ */
@@ -165,43 +168,71 @@ function computeMetrics(st, now){
           curSeq:finished?null:SEQ[done]};
 }
 
-/* ═══ 가민 라이브 데이터 시뮬레이션 ═══ */
-const HR_BASE={1:172,2:166,3:158,4:151};
-function tickHR(now){
+/* ═══════════════════════════════════════════════════════════════
+   실시간 데이터 수신 — MQTT 페이로드를 선수 상태에 반영
+   ───────────────────────────────────────────────────────────────
+   payload 예: { timestamp, athlete_id:"athlete_1", BPM:142, RMSSD:38.2,
+                 GCT:null, CADENCE:null, RESPIRATION:null }
+   ═══════════════════════════════════════════════════════════════ */
+
+// sensor(athlete_id 문자열) → 선수 객체 빠른 조회
+function findBySensor(sensorId){
+  return Object.values(S).find(st => st.sensor === sensorId);
+}
+
+/* MQTT 메시지 1건 반영 */
+function applyLiveReading(sensorId, payload){
+  const st = findBySensor(sensorId);
+  if(!st) return false;                 // 매칭 안 된 센서는 무시
+
+  const now = Date.now();
+  const bpm = Number(payload.BPM ?? payload.bpm);
+  if(Number.isFinite(bpm) && bpm > 0) st.bpm = Math.round(bpm);
+
+  const rmssd = payload.RMSSD ?? payload.rmssd;
+  st.rmssd = (rmssd==null) ? st.rmssd : Math.round(Number(rmssd));
+
+  // Phase 2 지표: 오면 반영, null이면 유지하지 않고 비움(러닝 구간 판단은 상위)
+  const gct = payload.GCT ?? payload.gct;
+  st.gct = (gct==null) ? null : Math.round(Number(gct));
+  const cad = payload.CADENCE ?? payload.cadence;
+  st.cadence = (cad==null) ? null : Math.round(Number(cad));
+  const resp = payload.RESPIRATION ?? payload.respiration;
+  st.respiration = (resp==null) ? null : Math.round(Number(resp));
+
+  // 통신 상태
+  st.connected = true;
+  st.lastRxAt = now;
+  st.rxCount = (st.rxCount||0) + 1;
+  if(payload.timestamp){
+    // 발행 시각과 수신 시각의 차 → Latency (음수 방어)
+    const sent = typeof payload.timestamp==="number"
+      ? (payload.timestamp>2e12 ? payload.timestamp : payload.timestamp*1000)
+      : Date.parse(payload.timestamp);
+    if(Number.isFinite(sent)) st.latencyMs = Math.max(0, now - sent);
+  }
+
+  // 심박 이력 (출발한 선수만 기록 — 경과초 기준)
+  if(st.started){
+    const m = computeMetrics(st, now);
+    const t = m.elapsed;
+    const last = st.hrHistory[st.hrHistory.length-1];
+    if(!last || t > last.t) st.hrHistory.push({t, bpm: st.bpm});
+    if(st.hrHistory.length > MAX_HR_HISTORY){
+      st.hrHistory.splice(0, st.hrHistory.length - MAX_HR_HISTORY);
+    }
+  }
+  return true;
+}
+
+/* 매 초 호출 — 일정 시간 데이터 없으면 연결 끊김 처리 */
+const STALE_MS = 4000;
+function tickConnection(now){
+  now = now ?? Date.now();
   Object.values(S).forEach(st=>{
-    if(!st.started){
-      st.bpm=0; st.rmssd=null; st.respiration=null; st.gct=null; st.cadence=null;
-      return;
-    }
-    const m=computeMetrics(st,now);
-    const base=HR_BASE[st.id]||150;
-    const wob=Math.sin((now/3000)+st.id)*4;
-    st.bpm=Math.max(90,Math.min(199,Math.round(base+wob+(Math.random()*3-1.5))));
-    st.rmssd=Math.max(6,Math.round(60-(st.bpm-90)*0.42+(Math.random()*5-2.5)));
-    // 호흡수: 심박에 비례 (HRM-Pro 지원)
-    st.respiration=Math.max(12,Math.round(st.bpm*0.245+(Math.random()*3-1.5)));
-    // GCT/Cadence는 러닝 구간에서만 유효
-    const isRun=!m.finished && m.curSeq && m.curSeq.type==="run";
-    if(isRun){
-      st.gct=Math.round(238+(st.bpm-150)*0.55+Math.sin(now/4000+st.id)*7+(Math.random()*6-3));
-      st.cadence=Math.round(174+Math.sin(now/2500+st.id)*5+(Math.random()*3-1.5));
-    } else { st.gct=null; st.cadence=null; }
-
-    // Part 2: 통신 상태 시뮬레이션 (실제로는 MQTT 수신 시각으로 계산)
-    st.latencyMs = Math.round(35 + Math.random()*90 + (st.id===3?40:0));
-    st.rxCount = (st.rxCount||0) + 1;
-    st.txCount = (st.txCount||0) + 1;
-    st.lastRxAt = now;
-
-    // ★ 심박 이력 누적 (스파크라인용)
-    const t=m.elapsed;
-    const last=st.hrHistory[st.hrHistory.length-1];
-    if(!last || t>last.t){
-      st.hrHistory.push({t, bpm:st.bpm});
-    }
-    // 트림은 push 여부와 무관하게 항상 수행 → 상한 초과 상태도 자가복구
-    if(st.hrHistory.length>MAX_HR_HISTORY){
-      st.hrHistory.splice(0, st.hrHistory.length-MAX_HR_HISTORY);
+    if(st.lastRxAt && (now - st.lastRxAt) > STALE_MS){
+      st.connected = false;
+      st.bpm = 0; st.rmssd = null; st.gct = null; st.cadence = null; st.respiration = null;
     }
   });
 }
@@ -217,25 +248,66 @@ function stopAthlete(id){
   st.started=false; st.startAt=null;
 }
 
-/* ═══ 데모 시드 ═══ */
-function seed(id, doneCount, driftPct, inProgSec, now){
-  const st=S[id];
-  now = now ?? Date.now();
-  st.started=true;
-  st.splits=st.guidance.slice(0,doneCount).map(g=>({
-    k:g.k, sec:Math.max(1,Math.round(g.target*(1+driftPct))), target:g.target
-  }));
-  st.current=doneCount;
-  const cum=st.splits.reduce((a,s)=>a+s.sec,0);
-  const total=cum+inProgSec;
-  st.startAt=now-total*1000;
+/* ═══════════════════════════════════════════════════════════════
+   선수 명단 관리 (추가 / 수정 / 삭제) — /admin 등록 UI에서 호출
+   ═══════════════════════════════════════════════════════════════ */
+let _nextId = ATHLETES.reduce((mx,a)=>Math.max(mx,a.id),0) + 1;
 
-  // 심박 이력 생성 (출발~현재, 존을 넘나들도록)
-  st.hrHistory=[];
-  const base=HR_BASE[id]||150;
-  for(let t=0;t<=total;t+=Math.max(1,Math.floor(total/240))){
-    const warm = t<total*0.10 ? (t/(total*0.10)) : 1;          // 초반 상승
-    const bpm = Math.round(base*0.72 + base*0.28*warm + Math.sin(t/45)*6 + Math.sin(t/13)*2);
-    st.hrHistory.push({t, bpm:Math.max(85,Math.min(199,bpm))});
+function addAthlete(info){
+  const id = _nextId++;
+  const ageNum = Number(info.ageNum)||30;
+  const maxHrManual = info.maxHrManual!=null && info.maxHrManual!=="" ? Number(info.maxHrManual) : null;
+  const targetSec = Number(info.targetSec)||3600;
+  const rec = {
+    id,
+    name: info.name || `선수 ${id}`,
+    en: info.en || "",
+    sex: info.sex || "M",
+    div: info.div || "MEN PRO",
+    age: info.age || "30-34",
+    ageNum, maxHrManual, targetSec,
+    sensor: info.sensor || "",            // 비어 있으면 스캔으로 연결
+    device: info.device || "Garmin HRM-Pro",
+  };
+  ATHLETES.push(rec);
+  const maxHr = maxHrManual ?? estimateMaxHr(ageNum);
+  S[id] = {...rec, maxHr, zones:buildZones(maxHr), guidance:buildGuidance(targetSec),
+    started:false, startAt:null, current:0, splits:[],
+    bpm:0, rmssd:null, respiration:null, gct:null, cadence:null,
+    hrHistory:[], connected:false, latencyMs:0, txCount:0, rxCount:0, lastRxAt:null};
+  return id;
+}
+
+function updateAthlete(id, info){
+  const st=S[id], a=ATHLETES.find(x=>x.id===id);
+  if(!st) return;
+  ["name","en","sex","div","age","sensor","device"].forEach(k=>{
+    if(info[k]!==undefined){ st[k]=info[k]; if(a)a[k]=info[k]; }
+  });
+  if(info.targetSec!==undefined){
+    st.targetSec=Number(info.targetSec)||st.targetSec;
+    if(a)a.targetSec=st.targetSec;
+    st.guidance=buildGuidance(st.targetSec);
   }
+  if(info.ageNum!==undefined || info.maxHrManual!==undefined){
+    updateAthleteHr(id, {
+      ageNum: info.ageNum!==undefined?Number(info.ageNum):undefined,
+      maxHrManual: info.maxHrManual!==undefined?(info.maxHrManual===""?null:Number(info.maxHrManual)):undefined
+    });
+  }
+}
+
+function removeAthlete(id){
+  const idx=ATHLETES.findIndex(x=>x.id===id);
+  if(idx>=0) ATHLETES.splice(idx,1);
+  delete S[id];
+  Object.values(TVS).forEach(t=>{ t.athletes=t.athletes.filter(x=>x!==id); });
+}
+
+/* 센서 연결 (스캔 결과의 athlete_id를 선수에 매핑) */
+function bindSensor(athleteId, sensorId, deviceName){
+  const st=S[athleteId], a=ATHLETES.find(x=>x.id===athleteId);
+  if(!st) return;
+  st.sensor=sensorId; if(a)a.sensor=sensorId;
+  if(deviceName){ st.device=deviceName; if(a)a.device=deviceName; }
 }
