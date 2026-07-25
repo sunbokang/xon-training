@@ -52,6 +52,7 @@
         <button onclick="openBroker()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-neutral-700 text-neutral-300 flex items-center gap-1.5">
           <span>📡</span><span id="mqtt-status" class="text-xs font-bold text-neutral-500">⚪</span>
         </button>
+        <span class="text-[11px] font-bold text-neutral-600" id="db-status">⚫ DB</span>
         <button onclick="clearAllData()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-red-900 text-red-400 hover:bg-red-950/40">🗑 초기화</button>
         <span class="text-xs text-hyrox font-black tabular" id="wallclock">--:--:--</span>
       </div>
@@ -959,16 +960,25 @@ const DB = (() => {
 
   function init(c){
     c = c || loadConfig();
+    if(!c.url || !c.key){
+      cfg.ready=false; cfg.lastError="URL/KEY 미설정";
+      saveConfig(c); cfg.url=c.url; cfg.key=c.key; return;
+    }
+    // 같은 URL/KEY면 재초기화 안 함 (Multiple GoTrueClient 경고 방지)
+    if(cfg.ready && cfg.url===c.url && cfg.key===c.key) return;
     saveConfig(c);
     cfg.url = c.url; cfg.key = c.key;
-    if(!c.url || !c.key){ cfg.ready=false; cfg.lastError="URL/KEY 미설정"; return; }
-    if(typeof window.supabase==="undefined" || !window.supabase.createClient){
+    // supabase-js v2 CDN: window.supabase 또는 전역 supabase
+    const sb = (typeof window!=="undefined" && window.supabase) ||
+               (typeof supabase!=="undefined" && supabase) || null;
+    if(!sb || !sb.createClient){
       cfg.ready=false; cfg.lastError="supabase-js 미로드"; return;
     }
     try{
-      client = window.supabase.createClient(c.url, c.key);
+      client = sb.createClient(c.url, c.key);
       cfg.ready = true; cfg.lastError="";
-      sessionId = new Date().toISOString().slice(0,10) + "_" + Math.random().toString(16).slice(2,6);
+      if(!sessionId) sessionId = new Date().toISOString().slice(0,10) + "_" + Math.random().toString(16).slice(2,6);
+      console.log("[DB] Supabase 연결 완료", c.url.slice(0,40));
     }catch(e){
       cfg.ready=false; cfg.lastError=String(e);
     }
@@ -1684,7 +1694,18 @@ function applyBroker(){
   SCAN_ENDPOINT = g("bk-scan").value.trim()||"http://localhost:8765/scan";
   // Supabase 재설정
   const suburl=g("bk-suburl").value.trim(), subkey=g("bk-subkey").value.trim();
-  if(suburl && subkey){ DB.init({url:suburl, key:subkey}); }
+  if(suburl && subkey){
+    DB.init({url:suburl, key:subkey});
+    // 연결 결과 즉시 표시
+    setTimeout(()=>{
+      const st=DB.getStatus();
+      const el=document.getElementById("db-status");
+      if(el) el.textContent = st.ready ? "🟢 DB연결" : "🔴 DB오류";
+      if(st.ready) console.log("[DB] 선수 upsert 시도");
+      // 연결 성공 시 현재 선수 즉시 upsert
+      if(st.ready) ATHLETES.forEach(a=>{ if(S[a.id]) DB.upsertAthlete(S[a.id]); });
+    }, 500);
+  }
   closeBroker();
 }
 function renderBroker(){
@@ -2301,6 +2322,9 @@ function renderAll(){
   const d=new Date();
   document.getElementById("wallclock").textContent=
     `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+  // DB 상태 표시
+  const dbEl=document.getElementById("db-status");
+  if(dbEl){ const ds=DB.getStatus(); dbEl.textContent=ds.ready?"🟢 DB":"⚫ DB"; }
 }
 
 /* ═══ 초기화 ═══ */
