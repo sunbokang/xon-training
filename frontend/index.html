@@ -53,6 +53,7 @@
         <button onclick="openBroker()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-neutral-700 text-neutral-300 flex items-center gap-1.5">
           <span>📡</span><span id="mqtt-status" class="text-xs font-bold text-neutral-500">⚪</span>
         </button>
+        <button onclick="clearAllData()" class="btn-press text-[11px] px-2 py-1 rounded-lg border border-red-900 text-red-400 hover:bg-red-950/40">🗑 초기화</button>
         <span class="text-xs text-hyrox font-black tabular" id="wallclock">--:--:--</span>
       </div>
     </div>
@@ -75,7 +76,13 @@
     </div>
     <button onclick="openAthleteForm()" class="btn-press shrink-0 bg-hyrox hover:bg-[#c94e20] text-white font-black px-4 py-2.5 rounded-xl text-sm">+ 선수 등록</button>
   </div>
-  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 mb-4">
+  <div id="empty-state" class="hidden rounded-2xl border-2 border-dashed border-neutral-800 p-12 text-center mb-4">
+    <p class="text-4xl mb-3">🏃</p>
+    <p class="text-lg font-black text-neutral-400 mb-1">등록된 선수가 없습니다</p>
+    <p class="text-sm text-neutral-600 mb-5">상단의 [+ 선수 등록] 버튼으로 선수를 추가하세요.</p>
+    <button onclick="openAthleteForm()" class="btn-press bg-hyrox text-white font-black px-6 py-3 rounded-xl">+ 첫 번째 선수 등록</button>
+  </div>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 mb-4" id="tv-section" style="display:none">
     <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-3">Display Control Center</p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4" id="tv-control"></div>
     <div class="flex items-center justify-between mb-2">
@@ -127,9 +134,7 @@
   </div>
 </footer>
 
-<!-- 저장 알림 토스트 -->
 <div id="save-toast" class="hidden fixed bottom-16 left-1/2 -translate-x-1/2 z-[70] bg-neutral-900 border border-hyrox/50 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"></div>
-
 <div id="fs-overlay" class="fs fixed inset-0 z-50 bg-base flex-col">
   <div id="fs-content" class="flex-1 min-h-0"></div>
   <footer class="shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-neutral-800">
@@ -143,7 +148,6 @@
     <button onclick="closeTv()" class="px-3 py-1.5 rounded-lg bg-neutral-800/80 text-neutral-300 text-xs font-bold btn-press">✕ ESC</button>
   </div>
 </div>
-
 <div id="scan-modal" class="fixed inset-0 z-[60] p-4"></div>
 <div id="athlete-form" class="fixed inset-0 z-[60] p-4"></div>
 <div id="broker-panel" class="fixed inset-0 z-[60] p-4"></div>
@@ -400,22 +404,42 @@ function signed(sec){
 /* ═══════════════════════════════════════════════════════════════
    더미 데이터 (실력 순) — age / maxHrManual 포함
    ═══════════════════════════════════════════════════════════════ */
-// 초기 선수 명단. 실제 운영에서는 /admin에서 직접 추가·편집합니다.
-// sensor 값은 파이썬 config.py SENSOR_MAP의 athlete_id 와 정확히 일치해야
-// 해당 선수 칸으로 실시간 데이터가 흘러갑니다.
-const ATHLETES = [
-  {id:1,name:"정원준",en:"Wonjoon Jung",sex:"M",div:"MEN PRO",age:"30-34",ageNum:32,maxHrManual:null,targetSec:3600,sensor:"athlete_1",device:"Garmin HRM-Pro"},
-  {id:2,name:"동주봉",en:"Bong Bong",   sex:"M",div:"MEN PRO",age:"30-34",ageNum:33,maxHrManual:null,targetSec:3600,sensor:"athlete_2",device:"Garmin HRM-Pro"},
-  {id:3,name:"강지웅",en:"Jiwoong Kang",sex:"M",div:"MEN PRO",age:"30-34",ageNum:31,maxHrManual:186, targetSec:4200,sensor:"athlete_3",device:"Garmin HRM-Pro"},
-  {id:4,name:"강선보",en:"Sunbo Kang",  sex:"M",div:"MEN PRO",age:"35-39",ageNum:37,maxHrManual:null,targetSec:4500,sensor:"athlete_4",device:"Garmin HRM-Pro"},
-];
+/* ═══════════════════════════════════════════════════════════════
+   선수 명단 — localStorage에서 불러오기 (없으면 빈 배열)
+   + 선수 등록 UI에서 추가하면 자동 저장됩니다.
+   ═══════════════════════════════════════════════════════════════ */
+function loadAthletesFromStorage(){
+  try{
+    const raw = localStorage.getItem("xon_athletes");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr) && arr.length > 0) return arr;
+    }
+  }catch(e){}
+  return [];   // 최초 실행 시 빈 배열 — [+ 선수 등록] 버튼으로 추가
+}
+function saveAthletesToStorage(){
+  try{ localStorage.setItem("xon_athletes", JSON.stringify(ATHLETES)); }catch(e){}
+}
 
-/* ═══ TV 매핑 ═══ */
-const TVS = {
-  tv1:{label:"TV 1", athletes:[1]},
-  tv2:{label:"TV 2", athletes:[2,3]},
-  tv3:{label:"TV 3", athletes:[4]},
-};
+const ATHLETES = loadAthletesFromStorage();
+
+/* ═══ TV 매핑 — localStorage에서 불러오기 ═══ */
+function loadTVSFromStorage(){
+  try{
+    const raw = localStorage.getItem("xon_tvs");
+    if(raw){ const d=JSON.parse(raw); if(d.tv1&&d.tv2&&d.tv3) return d; }
+  }catch(e){}
+  return {
+    tv1:{label:"TV 1", athletes:[]},
+    tv2:{label:"TV 2", athletes:[]},
+    tv3:{label:"TV 3", athletes:[]},
+  };
+}
+function saveTVSToStorage(){
+  try{ localStorage.setItem("xon_tvs", JSON.stringify(TVS)); }catch(e){}
+}
+const TVS = loadTVSFromStorage();
 function tvOfAthlete(id){
   for(const [k,v] of Object.entries(TVS)) if(v.athletes.includes(id)) return k;
   return null;
@@ -1627,7 +1651,7 @@ function doStop(id){
   if(!confirm(`${S[id].name} 선수의 타이머를 정지하고 기록을 초기화할까요?`)) return;
   stopAthlete(id); S[id].splits=[]; S[id].current=0; S[id].hrHistory=[]; renderAll();
 }
-function onAssign(id,tv){ assignAthlete(id, tv==="none"?null:tv); renderAll(); }
+function onAssign(id,tv){ assignAthlete(id, tv==="none"?null:tv); saveTVSToStorage(); renderAll(); }
 
 /* ★ PART 4 · 나이 / 최대심박 변경 → 존 재정의 */
 function onAgeChange(id, val){
@@ -1777,7 +1801,7 @@ function submitAthleteForm(){
   let targetId;
   if(athleteForm.editId){ updateAthlete(athleteForm.editId, info); targetId=athleteForm.editId; }
   else { targetId=addAthlete(info); }
-  // DB에 선수 저장 (연결돼 있으면)
+  saveAthletesToStorage();   // localStorage에 선수 명단 저장
   if(S[targetId]) DB.upsertAthlete(S[targetId]);
   closeAthleteForm();
   renderAll();
@@ -1865,7 +1889,12 @@ function renderAthleteForm(){
 }
 
 function confirmRemoveAthlete(id){
-  if(confirm(`${S[id].name} 선수를 삭제할까요?`)){ removeAthlete(id); renderAll(); }
+  if(confirm(`${S[id].name} 선수를 삭제할까요?`)){
+    removeAthlete(id);
+    saveAthletesToStorage();
+    saveTVSToStorage();
+    renderAll();
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1873,6 +1902,17 @@ function confirmRemoveAthlete(id){
    ═══════════════════════════════════════════════════════════════ */
 function renderAdmin(){
   const now=Date.now();
+  // 선수가 없으면 empty-state 표시, 있으면 TV 섹션 표시
+  const hasAthletes = ATHLETES.length > 0;
+  const emptyEl=document.getElementById("empty-state");
+  const tvEl=document.getElementById("tv-section");
+  if(emptyEl) emptyEl.classList.toggle("hidden", hasAthletes);
+  if(tvEl) tvEl.style.display = hasAthletes ? "" : "none";
+  if(!hasAthletes){
+    const rows=document.getElementById("admin-rows");
+    if(rows) rows.innerHTML="";
+    return;
+  }
 
   document.getElementById("tv-control").innerHTML = Object.entries(TVS).map(([k,tv])=>{
     const n=tv.athletes.length;
@@ -2247,6 +2287,18 @@ async function renderReportList(){
           <span class="text-hyrox text-sm shrink-0">리포트 →</span>
         </a>`).join("")}
     </div>`;
+}
+
+/* ══ 전체 초기화 (선수/TV 명단 삭제) ══ */
+function clearAllData(){
+  if(!confirm("모든 선수 데이터와 TV 매핑을 초기화할까요?\n(MQTT/Supabase 설정은 유지됩니다)")) return;
+  // 선수 전원 삭제
+  [...ATHLETES].forEach(a=>removeAthlete(a.id));
+  // TV 초기화
+  Object.values(TVS).forEach(t=>{ t.athletes=[]; });
+  saveAthletesToStorage();
+  saveTVSToStorage();
+  renderAll();
 }
 
 let _flushTick=0;
